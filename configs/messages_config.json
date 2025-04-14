@@ -1,0 +1,1829 @@
+{
+    "can2mqtt": [
+        {
+            "topic": "error/emergency",
+            "canid": "0x1",
+            "length": 8,
+            "payload": [
+                {}
+            ]
+        },
+        {
+            "topic": "clock",
+            "canid": "0x5",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "controller/pong",
+            "canid": "0x10",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "controller/data",
+            "canid": "0x13",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "status",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "imu/pong",
+            "canid": "0x20",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "imu/data_acc",
+            "canid": "0x24",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "acc_x",
+                    "type": "int16_t",
+                    "place": [
+                        0,
+                        2
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "acc_y",
+                    "type": "int16_t",
+                    "place": [
+                        2,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "acc_z",
+                    "type": "int16_t",
+                    "place": [
+                        4,
+                        6
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "imu/data_mag",
+            "canid": "0x25",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "mag_x",
+                    "type": "int16_t",
+                    "place": [
+                        0,
+                        2
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "mag_y",
+                    "type": "int16_t",
+                    "place": [
+                        2,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "mag_z",
+                    "type": "int16_t",
+                    "place": [
+                        4,
+                        6
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "wob/pong",
+            "canid": "0x30",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "wob/data",
+            "canid": "0x33",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unfiltered",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 0.00001
+                },
+                {
+                    "key": "filtered",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 0.00001
+                }
+            ]
+        },
+        {
+            "topic": "hookload/pong",
+            "canid": "0x40",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "hookload/data",
+            "canid": "0x43",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unfiltered",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "filtered",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "steering/pong",
+            "canid": "0x50",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "steering/data",
+            "canid": "0x53",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "deployment_1",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "deployment_2",
+                    "type": "uint8_t",
+                    "place": [
+                        1,
+                        2
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "deployment_3",
+                    "type": "uint8_t",
+                    "place": [
+                        2,
+                        3
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "force_1",
+                    "type": "uint8_t",
+                    "place": [
+                        3,
+                        4
+                    ],
+                    "factor": 2.0
+                },
+                {
+                    "key": "force_2",
+                    "type": "uint8_t",
+                    "place": [
+                        4,
+                        5
+                    ],
+                    "factor": 2.0
+                },
+                {
+                    "key": "force_3",
+                    "type": "uint8_t",
+                    "place": [
+                        5,
+                        6
+                    ],
+                    "factor": 2.0
+                },
+                {
+                    "key": "deployment_state",
+                    "type": "uint8_t",
+                    "place": [
+                        6,
+                        7
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "motor/pong",
+            "canid": "0x60",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "motor/data",
+            "canid": "0x63",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "torque",
+                    "type": "int16_t",
+                    "place": [
+                        0,
+                        2
+                    ],
+                    "factor": 0.001
+                },
+                {
+                    "key": "rpm",
+                    "type": "int16_t",
+                    "place": [
+                        2,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "torque_filtered",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "zachse/pong",
+            "canid": "0x70",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "zachse/position",
+            "canid": "0x73",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "position",
+                    "type": "int32_t",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 0.000833333
+                },
+                {
+                    "key": "delta",
+                    "type": "int32_t",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1
+                }
+            ]
+        },
+        {
+            "topic": "rotarytable/pong",
+            "canid": "0x80",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "rotarytable/data",
+            "canid": "0x83",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "degree",
+                    "type": "int32_t",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 0.008035714
+                },
+                {
+                    "key": "delta",
+                    "type": "int32_t",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "power/pong",
+            "canid": "0x90",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "power/data",
+            "canid": "0x93",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "HPpump",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "PCpump",
+                    "type": "uint8_t",
+                    "place": [
+                        1,
+                        2
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "Power1",
+                    "type": "uint8_t",
+                    "place": [
+                        2,
+                        3
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "Power2",
+                    "type": "uint8_t",
+                    "place": [
+                        3,
+                        4
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "flowmeter/pong",
+            "canid": "0xA0",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "flowmeter/data",
+            "canid": "0xA3",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "Pressure",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "Flow",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "drillstring/pong",
+            "canid": "0xB0",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "depth/pong",
+            "canid": "0xC0",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "depth/data",
+            "canid": "0xC3",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "depth",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "depth_tara",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "clock/pong",
+            "canid": "0xF0",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "cali/pong",
+            "canid": "0xD0",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "cali/data",
+            "canid": "0xD3",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "azimut",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "inclination",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "wireline/pong",
+            "canid": "0xE0",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "wireline/data",
+            "canid": "0xE3",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "inclination",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "azimut",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "translator/get_ip_address"
+        },
+        {
+            "topic": "translator/status"
+        },
+        {
+            "topic": "translator/state"
+        }
+    ],
+    "mqtt2can": [
+        {
+            "topic": "controller/ping",
+            "canid": "0x11",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "controller/write",
+            "canid": "0x12",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "write",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "controller/alive",
+            "canid": "0x14",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "controller/setpoint",
+            "canid": "0x15",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "setpoint",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "controller/config1",
+            "canid": "0x16",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "b0",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "b1",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "controller/config2",
+            "canid": "0x17",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "output_min",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "output_max",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "imu/ping",
+            "canid": "0x21",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "imu/request",
+            "canid": "0x27",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "request",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "imu/tara",
+            "canid": "0x26",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "wob/ping",
+            "canid": "0x31",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "wob/tara",
+            "canid": "0x32",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "wob/cali",
+            "canid": "0x34",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unitconversion",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "filterconstant",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "hookload/ping",
+            "canid": "0x41",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "hookload/tara",
+            "canid": "0x42",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "hookload/cali",
+            "canid": "0x44",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unitconversion",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "filterconstant",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "steering/ping",
+            "canid": "0x51",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "steering/write",
+            "canid": "0x54",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "Pad1",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "Pad2",
+                    "type": "uint8_t",
+                    "place": [
+                        1,
+                        2
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "Pad3",
+                    "type": "uint8_t",
+                    "place": [
+                        2,
+                        3
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "steering/homing",
+            "canid": "0x55",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "motor/ping",
+            "canid": "0x61",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "motor/set",
+            "canid": "0x62",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "max torque",
+                    "type": "int16_t",
+                    "place": [
+                        0,
+                        2
+                    ],
+                    "factor": 600
+                },
+                {
+                    "key": "soft torque",
+                    "type": "int16_t",
+                    "place": [
+                        2,
+                        4
+                    ],
+                    "factor": 600
+                },
+                {
+                    "key": "rpm",
+                    "type": "int16_t",
+                    "place": [
+                        4,
+                        6
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "motor/power",
+            "canid": "0x64",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "power",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "zachse/ping",
+            "canid": "0x71",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "zachse/clear",
+            "canid": "0x79",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "zachse/homing",
+            "canid": "0x74",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "position after homing",
+                    "type": "int32_t",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "zachse/movex",
+            "canid": "0x75",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "steps",
+                    "type": "int32_t",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1200.0
+                },
+                {
+                    "key": "speed",
+                    "type": "uint16_t",
+                    "place": [
+                        4,
+                        6
+                    ],
+                    "factor": 20.0
+                }
+            ]
+        },
+        {
+            "topic": "zachse/moveto",
+            "canid": "0x76",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "position",
+                    "type": "int32_t",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "speed",
+                    "type": "uint16_t",
+                    "place": [
+                        4,
+                        6
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "rotarytable/ping",
+            "canid": "0x81",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "rotarytable/homing",
+            "canid": "0x84",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "position after homing",
+                    "type": "int32_t",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "rotarytable/movex",
+            "canid": "0x85",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "steps",
+                    "type": "int32_t",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 39.5
+                },
+                {
+                    "key": "speed",
+                    "type": "uint16_t",
+                    "place": [
+                        4,
+                        6
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "rotarytable/moveto",
+            "canid": "0x86",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "position",
+                    "type": "int32_t",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 44800.0
+                },
+                {
+                    "key": "speed",
+                    "type": "uint16_t",
+                    "place": [
+                        4,
+                        6
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "power/ping",
+            "canid": "0x91",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "power/write",
+            "canid": "0x92",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "PCpump",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "Power1",
+                    "type": "uint8_t",
+                    "place": [
+                        1,
+                        2
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "HPpump",
+                    "type": "uint8_t",
+                    "place": [
+                        2,
+                        3
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "Power2",
+                    "type": "uint8_t",
+                    "place": [
+                        3,
+                        4
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "flowmeter/ping",
+            "canid": "0xA1",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "flowmeter/cali",
+            "canid": "0xA4",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unitconversion",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "filterconstant",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "flowmeter/tara",
+            "canid": "0xA6",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "drillstring/ping",
+            "canid": "0xB1",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "drillstring/tara",
+            "canid": "0xB2",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "drillstring/cali",
+            "canid": "0xB4",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unitconversion",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "filterconstant",
+                    "type": "float",
+                    "place": [
+                        4,
+                        8
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "depth/ping",
+            "canid": "0xC1",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "depth/tara",
+            "canid": "0xC5",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "cali/ping",
+            "canid": "0xD1",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "cali/tara",
+            "canid": "0xD2",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "cali_tara",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "cali/moveto",
+            "canid": "0xD6",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "angle",
+                    "type": "float",
+                    "place": [
+                        0,
+                        4
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "cali/homing",
+            "canid": "0xD5",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "clock/ping",
+            "canid": "0xF1",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "ping",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "clock/restart",
+            "canid": "0xF2",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "clock/setup",
+            "canid": "0xF4",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "sendcan",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "clock/getnpt",
+            "canid": "0xF5",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "unixtime",
+                    "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "translator/get_ip_address"
+        },
+        {
+            "topic": "translator/status"
+        },
+        {
+            "topic": "translator/state"
+        }
+    ]
+}
