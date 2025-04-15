@@ -1,66 +1,92 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/farouk15160/Translater-code-new/internal/canframe"
-	"github.com/farouk15160/Translater-code-new/internal/config"
+	MQTT "github.com/eclipse/paho.mqtt.golang" // Import paho mqtt library
+	"github.com/farouk15160/Translater-code-new/internal/bridge"
+	"github.com/farouk15160/Translater-code-new/internal/config" // Import config package
 	myMqtt "github.com/farouk15160/Translater-code-new/internal/mqtt"
 )
 
 func main() {
-	// Example usage: adjust broker URL as needed.
-	brokerURL := "tcp://192.168.178.5:1883"
-	clientID := "farouk_mqtt"
-	debug := true
+	flag.Parse() // Parse command-line flags
 
-	// 1) Load the config from JSON
-	cfgPath := "configs/messages_config.json"
-	cfg, err := config.LoadConfig(cfgPath)
+	log.Println("--- Starting CAN-MQTT Translator ---")
+
+	// 1. Apply settings from flags/defaults to the bridge package
+	bridge.SetDbg(*config.DebugFlag)
+	bridge.SetCi(*config.CanIfaceFlag)
+	bridge.SetCs(*config.MqttBrokerFlag)                          // Store broker URL for info, MQTT client handles connection string itself
+	bridge.SetC2mf(*config.ConfigFileFlag)                        // Set initial config file path
+	bridge.SetConfDirMode(fmt.Sprintf("%d", *config.DirModeFlag)) // Convert int flag to string setter expects
+	bridge.SetUserName(*config.UsernameFlag)
+	bridge.SetTimeSleepValue(fmt.Sprintf("%d", *config.SleepTimeFlag)) // Convert int flag to string setter expects
+	bridge.SetThread(*config.ThreadFlag)
+
+	// 2. Load the initial configuration file (using the path set in bridge)
+	initialConfigPath := bridge.GetConfigFilePath() // Get the path (potentially expanded)
+	cfg, err := config.LoadConfig(initialConfigPath)
 	if err != nil {
-		log.Fatalf("Error loading config at %s: %v", cfgPath, err)
+		log.Fatalf("Error loading initial config at %s: %v", initialConfigPath, err)
 	}
-	log.Printf("Loaded %d can2mqtt configs, %d mqtt2can configs from %s.",
-		len(cfg.Can2mqtt), len(cfg.Mqtt2can), cfgPath)
+	log.Printf("Loaded %d can2mqtt rules, %d mqtt2can rules from %s.",
+		len(cfg.Can2mqtt), len(cfg.Mqtt2can), initialConfigPath)
 
-	// 2) Connect to the MQTT broker
-	mqttClient := myMqtt.NewClient(brokerURL, clientID, debug)
-	if err := mqttClient.Connect(brokerURL, clientID); err != nil {
-		log.Fatalf("Failed to connect to MQTT: %v", err)
+	// Make the loaded config accessible to the bridge (e.g., conversion functions)
+	bridge.SetConfig(cfg)
+
+	// 3. Initialize MQTT Client
+	mqttClient, err := myMqtt.NewClientAndConnect(*config.ClientIDFlag, bridge.GetBrokerURL(), bridge.IsDebugEnabled())
+	if err != nil {
+		log.Fatalf("Failed to initialize and connect MQTT client: %v", err)
 	}
+	defer mqttClient.Disconnect() // Ensure disconnection on exit
 
-	// 3) Subscribe to topics from the config (example with can2mqtt)
-	for _, conv := range cfg.Can2mqtt {
+	// 4. Wire up handlers and publishers using callbacks
+	log.Println("Wiring up MQTT handlers and publisher...")
+
+	bridge.SetMQTTPublisher(mqttClient.Publish)
+
+	myMqtt.SetBridgeMessageHandler(bridgeMsgHandler{}) // Pass an instance
+
+	myMqtt.SetConfigHandler(bridge.ApplyConfigUpdate)
+
+	// 5. Subscribe to initial topics based on the loaded config (MQTT->CAN rules)
+	log.Printf("Subscribing to %d initial MQTT topics...", len(cfg.Mqtt2can))
+	for _, conv := range cfg.Mqtt2can {
 		if err := mqttClient.Subscribe(conv.Topic); err != nil {
 			log.Printf("Failed to subscribe to %s: %v", conv.Topic, err)
 		} else {
-			log.Printf("Subscribed to: %s", conv.Topic)
+			if bridge.IsDebugEnabled() {
+				log.Printf("MQTT Subscribed to: %s", conv.Topic)
+			}
 		}
 	}
 
-	// (Similarly, you might subscribe to Mqtt2can topics if you want.)
+	// 6. Publish the retained "start" info
+	myMqtt.PublishStartInfo(mqttClient)
 
-	// 4) Example usage of the canframe package
-	exampleFrame := canframe.Frame{
-		ID:     0x123,
-		Length: 8,
-		Data:   [8]uint8{1, 2, 3, 4, 5, 6, 7, 8},
-	}
-	fmt.Printf("Example CAN Frame: %+v\n", exampleFrame)
+	// 7. Start the main bridge logic (CAN handling, etc.)
+	log.Println("Starting bridge main loop...")
+	bridge.Start(mqttClient.Subscribe)
 
-	// 5) (Optional) Publish a test message to verify your subscription:
-	// mqttClient.Publish("test/topic/abc", "Hello from Go!")
-
-	// 6) Wait for CTRL+C or kill signal
+	// 8. Wait for shutdown signal (bridge.Start should handle this, but keep fallback)
+	log.Println("Bridge exited or setup failed before start. Waiting for signal...")
 	waitForSignal()
+	log.Println("Shutdown signal received. Exiting.")
+}
 
-	// 7) Disconnect cleanly from MQTT
-	mqttClient.Disconnect()
-	log.Println("Shutting down gracefully...")
+// bridgeMsgHandler satisfies MQTT.MessageHandler interface by calling bridge.HandleMessage
+type bridgeMsgHandler struct{}
+
+func (bh bridgeMsgHandler) HandleMessage(client MQTT.Client, msg MQTT.Message) {
+	bridge.HandleMessage(client, msg)
 }
 
 // waitForSignal blocks until an OS signal is received for termination.

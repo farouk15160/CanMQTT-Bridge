@@ -696,13 +696,20 @@
             ]
         },
         {
-            "topic": "translator/get_ip_address"
-        },
-        {
-            "topic": "translator/status"
-        },
-        {
-            "topic": "translator/state"
+            "topic": "translater/start",
+            "canid": "0xE4",
+            "length": 32,
+            "payload": [
+                {
+                    "key": "welcomeMessage",
+                    "type": "string",
+                    "place": [
+                        0,
+                        31
+                    ],
+                    "factor": 1.0
+                }
+            ]
         }
     ],
     "mqtt2can": [
@@ -1815,15 +1822,6 @@
                     "factor": 1.0
                 }
             ]
-        },
-        {
-            "topic": "translator/get_ip_address"
-        },
-        {
-            "topic": "translator/status"
-        },
-        {
-            "topic": "translator/state"
         }
     ]
 }
