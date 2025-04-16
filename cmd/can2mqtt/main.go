@@ -6,120 +6,126 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime" // For setting GOMAXPROCS
 	"syscall"
 
-	// Only needed if adding delays/timeouts here
-	MQTT "github.com/eclipse/paho.mqtt.golang" // Alias not strictly needed but can clarify origin
+	MQTT "github.com/eclipse/paho.mqtt.golang"
 	bridge "github.com/farouk15160/Translater-code-new/internal/bridge"
 	config "github.com/farouk15160/Translater-code-new/internal/config"
 	myMqtt "github.com/farouk15160/Translater-code-new/internal/mqtt"
 )
 
 func main() {
-	flag.Parse() // Parse command-line Args
+	// Optimize for concurrency by using all available CPU cores
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	flag.Parse()
 	log.Println("--- Starting CAN-MQTT Translator ---")
 
-	// 1. Apply settings from flags/defaults to the bridge package
+	// 1. Apply settings from flags/defaults
 	bridge.SetDbg(*config.DebugFlag)
 	bridge.SetCi(*config.CanIfaceFlag)
-	bridge.SetCs(*config.MqttBrokerFlag)   // Store broker URL for info
-	bridge.SetC2mf(*config.ConfigFileFlag) // Set initial config file path
+	bridge.SetCs(*config.MqttBrokerFlag)
+	bridge.SetC2mf(*config.ConfigFileFlag) // Set initial path -> triggers initial LoadConfig -> SetConfig (which preprocesses)
 	bridge.SetConfDirMode(fmt.Sprintf("%d", *config.DirModeFlag))
 	bridge.SetUserName(*config.UsernameFlag)
 	bridge.SetTimeSleepValue(fmt.Sprintf("%d", *config.SleepTimeFlag))
-	bridge.SetThread(*config.ThreadFlag)
+	bridge.SetThread(*config.ThreadFlag) // Note: CAN handling might still run in background if not threaded
 
-	// 2. Load the initial configuration file
+	// 2. Load Config (happens inside SetC2mf now, re-check logic or load explicitly here)
+	// Explicit load after setting path might be clearer:
 	initialConfigPath := bridge.GetConfigFilePath()
 	cfg, err := config.LoadConfig(initialConfigPath)
 	if err != nil {
 		log.Fatalf("Error loading initial config at %s: %v", initialConfigPath, err)
 	}
-	log.Printf("Loaded %d can2mqtt rules, %d mqtt2can rules from %s.",
+	bridge.SetConfig(cfg) // Preprocess and store
+	log.Printf("Loaded and processed %d can2mqtt, %d mqtt2can rules from %s.",
 		len(cfg.Can2mqtt), len(cfg.Mqtt2can), initialConfigPath)
 
-	// Make the loaded config accessible globally within the bridge package
-	bridge.SetConfig(cfg)
-
 	// 3. Initialize MQTT Client
-	// *** Removed retry loop - rely on Paho's internal retry mechanism ***
 	mqttClient, err := myMqtt.NewClientAndConnect(*config.ClientIDFlag, bridge.GetBrokerURL(), bridge.IsDebugEnabled())
 	if err != nil {
-		// Log the error from setup, but don't exit. Paho will retry in background.
 		log.Printf("Warning: MQTT client setup reported an error: %v. Connection will be attempted in background.", err)
-		// If client is nil, we have a fundamental setup problem, should probably exit.
 		if mqttClient == nil {
 			log.Fatalf("MQTT client initialization failed critically.")
 		}
 	} else {
 		log.Println("MQTT Client initialized. Connection attempts running in background.")
 	}
-	// Defer disconnect regardless of initial connection state
 	defer mqttClient.Disconnect()
 
-	// 4. Wire up handlers and publishers using callbacks
+	// 4. Wire up handlers and publishers
 	log.Println("Wiring up MQTT handlers and publisher...")
-	bridge.SetMQTTPublisher(mqttClient.Publish) // Use non-retained publish for CAN->MQTT
+	bridge.SetMQTTPublisher(mqttClient) // Pass the client which implements the Publisher interface
 	myMqtt.SetBridgeMessageHandler(bridgeMsgHandler{})
 	myMqtt.SetConfigHandler(bridge.ApplyConfigUpdate)
+	// Pass the MQTT client update function to the bridge if needed for username changes etc.
+	// bridge.SetMqttClientUpdater(...) // If MQTT client needs dynamic updates
 
-	// 5. Subscribe to initial topics
-	// Subscriptions will be attempted even if not connected yet; Paho should queue them.
-	// The onConnect handler in mqtt_client ensures re-subscription for command topics.
-	// Bridge topics should be handled by config reload mechanism if needed after connection.
-	log.Printf("Attempting to subscribe to %d initial MQTT->CAN topics...", len(cfg.Mqtt2can))
+	// 5. Subscribe to initial topics (using the client's Subscribe method)
+	// Access config via bridge's maps after SetConfig
+	bridge.ConfigLock.RLock()                                       // Use exported name
+	initialMqttTopics := make([]string, 0, len(bridge.MqttRuleMap)) // Use exported name
+	for topic := range bridge.MqttRuleMap {                         // Use exported name
+		initialMqttTopics = append(initialMqttTopics, topic)
+	}
+	bridge.ConfigLock.RUnlock() // Use exported name
+
+	log.Printf("Attempting to subscribe to %d initial MQTT->CAN topics...", len(initialMqttTopics))
 	initialSubscriptionErrors := 0
-	for _, conv := range cfg.Mqtt2can {
-		if err := mqttClient.Subscribe(conv.Topic); err != nil {
-			log.Printf("Warning: Failed initial subscribe attempt for %s: %v (will retry on connect)", conv.Topic, err)
+	for _, topic := range initialMqttTopics {
+		if err := mqttClient.Subscribe(topic); err != nil {
+			log.Printf("Warning: Failed initial subscribe attempt for %s: %v (will retry on connect)", topic, err)
 			initialSubscriptionErrors++
 		}
 	}
+	// Subscribe to internal command topics
+	internalTopics := []string{"translater/process", "translater/run"}
 	log.Println("Attempting to subscribe to internal command topics...")
-	if err := mqttClient.Subscribe("translater/process"); err != nil {
-		log.Printf("Warning: Failed initial subscribe attempt for translater/process: %v", err)
-		initialSubscriptionErrors++
-	}
-	if err := mqttClient.Subscribe("translater/run"); err != nil {
-		log.Printf("Warning: Failed initial subscribe attempt for translater/run: %v", err)
-		initialSubscriptionErrors++
+	for _, topic := range internalTopics {
+		if err := mqttClient.Subscribe(topic); err != nil {
+			log.Printf("Warning: Failed initial subscribe attempt for %s: %v", topic, err)
+			initialSubscriptionErrors++
+		}
 	}
 	if initialSubscriptionErrors > 0 {
 		log.Printf("Note: %d initial subscriptions failed, they will be retried upon successful MQTT connection via the onConnect handler.", initialSubscriptionErrors)
 	}
 
-	// 6. Publish the retained "start" info
-	// This might fail if not connected yet, but Paho might queue it.
-	// Alternatively, move this into the onConnect handler? For now, try immediately.
+	// 6. Publish retained "start" info
 	myMqtt.PublishStartInfo(mqttClient)
 
-	// 7. Start the main bridge logic (CAN handling, etc.)
-	log.Println("Starting bridge main loop...")
-	// Pass the MQTT subscribe function so the bridge can re-subscribe on config reload
-	bridge.Start(mqttClient.Subscribe) // Bridge Start will block or run in background
+	// 7. Start the main bridge logic (CAN handling, worker pools)
+	log.Println("Starting bridge...")
+	// Pass subscribe/unsubscribe functions
+	bridge.Start(mqttClient.Subscribe, mqttClient.Unsubscribe) // Bridge Start now starts workers and CAN handler
 
 	// 8. Wait for shutdown signal
-	log.Println("Bridge start routine finished or running in background. Waiting for shutdown signal...")
+	log.Println("Bridge routines started. Waiting for shutdown signal (Ctrl+C)...")
 	waitForSignal()
-	log.Println("Shutdown signal received. Cleaning up...")
+	log.Println("Shutdown signal received.")
+
+	// 9. Trigger graceful shutdown in bridge (stops workers, CAN)
+	bridge.Stop()
+
 	// mqttClient.Disconnect() // defer handles this
-	log.Println("Exiting.")
+	log.Println("Cleanup complete. Exiting.")
 }
 
 // bridgeMsgHandler satisfies the mqtt.MessageHandler interface
 type bridgeMsgHandler struct{}
 
-// HandleMessage delegates to the bridge's message handler
+// HandleMessage delegates to the bridge's dispatcher
 func (bh bridgeMsgHandler) HandleMessage(client MQTT.Client, msg MQTT.Message) {
-	// The actual processing happens in a goroutine launched by the MQTT client's defaultHandler
-	// This call just passes the necessary info.
+	// bridge.HandleMessage now dispatches to the mqttWorkChan
 	bridge.HandleMessage(client, msg)
 }
 
-// waitForSignal blocks until an OS signal (Interrupt or Terminate) is received.
+// waitForSignal blocks until an OS signal is received.
 func waitForSignal() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	receivedSignal := <-sigChan // block until signal
-	log.Printf("Signal listener started. Signal received: %v", receivedSignal)
+	receivedSignal := <-sigChan
+	log.Printf("Signal received: %v", receivedSignal)
 }

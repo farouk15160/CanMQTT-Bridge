@@ -4,21 +4,15 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"log" // Added for logging
+	"log"
 	"math"
-	"strconv"
-	"strings"
-	"time" // Import time for timestamp override
-
-	// "sync" // Removed sync as clockMutex is removed
+	"strconv" // Keep for CAN ID parsing during map creation
+	"strings" // Keep for CAN ID parsing
+	"time"
 
 	"github.com/brutella/can"
-	// Import config package for struct types
-	"github.com/farouk15160/Translater-code-new/internal/config"
+	"github.com/farouk15160/Translater-code-new/internal/config" // Keep for types
 )
-
-// Removed: var clockMutex sync.RWMutex
-// Removed: var lastClock string = "00"
 
 // Struct definition for MQTT response payload
 type mqttResponse struct {
@@ -26,99 +20,58 @@ type mqttResponse struct {
 	Payload string
 }
 
-// getPayloadConv searches the loaded configuration for matching rules.
-// Uses the package variable 'loadedConfig'.
-func getPayloadConv(id string, mode string) (*config.Conversion, error) {
-	if loadedConfig == nil {
-		return nil, fmt.Errorf("cannot get payload conversion: config not loaded")
+// getPayloadConv is NO LONGER USED. Lookups happen directly using maps.
+
+// Convert2MQTTUsingMap converts a CAN frame using the preprocessed CanRuleMap.
+// Returns mqttResponse, the matching *config.Conversion rule, and error.
+// --- EXPORTED ---
+func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse, *config.Conversion, error) {
+	res := mqttResponse{}
+
+	ConfigLock.RLock()                 // Use exported name - Read lock for accessing the map
+	convRule, exists := CanRuleMap[id] // Use exported name
+	currentDebugMode := debugMode      // Read debug flag under lock
+	ConfigLock.RUnlock()               // Use exported name - Release lock
+
+	if !exists {
+		// Don't log error here, let caller decide. Return specific error?
+		// For now, return nil rule and specific error message
+		return res, nil, fmt.Errorf("no matching conversion rule found")
 	}
 
-	var searchList []config.Conversion
-	var isCanToMqtt bool
+	// We have the rule, proceed with conversion
+	res.Topic = convRule.Topic
 
-	switch mode {
-	case "can2mqtt":
-		searchList = loadedConfig.Can2mqtt
-		isCanToMqtt = true
-	case "mqtt2can":
-		searchList = loadedConfig.Mqtt2can
-		isCanToMqtt = false
-	default:
-		return nil, fmt.Errorf("invalid mode '%s' passed to getPayloadConv", mode)
-	}
-
-	for i := range searchList {
-		conv := &searchList[i] // Get pointer to avoid copying large struct
-		var compareID string
-		if isCanToMqtt {
-			// Compare CAN ID (hex string format)
-			compareID = conv.CanID
-			// Normalize input ID for comparison (ensure 0x prefix, uppercase?)
-			if !strings.HasPrefix(id, "0x") {
-				parsedID, err := strconv.ParseUint(id, 16, 32)
-				if err != nil {
-					continue
-				}
-				id = fmt.Sprintf("0x%X", parsedID)
-			}
-			// Normalize config ID
-			if !strings.HasPrefix(compareID, "0x") {
-				parsedID, err := strconv.ParseUint(compareID, 16, 32)
-				if err == nil {
-					compareID = fmt.Sprintf("0x%X", parsedID)
-				}
-			}
-
-		} else {
-			// Compare MQTT Topic
-			compareID = conv.Topic
-		}
-
-		if compareID == id {
-			if debugMode {
-				log.Printf("getPayloadConv: Found matching conversion for ID/Topic '%s' (mode: %s)", id, mode)
-			}
-			return conv, nil // Return pointer to the found conversion rule and nil error
-		}
-	}
-
-	// No match found
-	return nil, fmt.Errorf("no matching conversion rule found for %s '%s'", mode, id)
-}
-
-// convert2MQTT converts a CAN frame to an MQTT topic and JSON payload string.
-// It now ALWAYS adds/overwrites a "timestamp" field with the translator's current time.
-// Returns mqttResponse and error.
-func convert2MQTT(id int, length int, payload [8]byte) (mqttResponse, error) {
-	res := mqttResponse{}            // Initialize empty response
-	idStr := fmt.Sprintf("0x%X", id) // Format ID as hex string (e.g., 0x1A)
-
-	convRule, err := getPayloadConv(idStr, "can2mqtt")
-	if err != nil {
-		res.Topic = "error/conversion"
-		res.Payload = fmt.Sprintf(`{"error":"no matching rule for CAN ID %s"}`, idStr)
-		return res, err // Return the error from getPayloadConv
-	}
-
-	res.Topic = convRule.Topic // Set the correct topic from the rule
-
-	// --- Step 1: Create initial JSON map based on conversion rules ---
 	jsonData := make(map[string]interface{})
-	var processingError error = nil // Track errors during field processing
+	var processingError error = nil
 
 	for _, field := range convRule.Payload {
-		var value interface{} // Use interface{} to hold various types
+		var value interface{}
 		var fieldErr error = nil
 
 		startIndex := field.Place[0]
 		endIndex := field.Place[1]
 
+		// Basic validation (could be done during config loading)
 		if startIndex < 0 || startIndex >= 8 || endIndex <= startIndex || endIndex > 8 {
-			log.Printf("convert2MQTT Warning: Invalid place %v for field '%s' in CAN ID %s rule. Skipping field.", field.Place, field.Key, idStr)
+			if currentDebugMode { // Only log validation warnings if debugging
+				log.Printf("Convert2MQTT Warning: Invalid place %v for field '%s' in CAN ID %X rule. Skipping field.", field.Place, field.Key, id)
+			}
 			continue
 		}
-		if startIndex >= length || endIndex > length {
-			log.Printf("convert2MQTT Warning: Place %v for field '%s' (CAN ID %s) exceeds payload length %d. Skipping field.", field.Place, field.Key, idStr, length)
+		if startIndex >= length { // Check if start index is within actual payload length
+			// This might be a valid scenario (optional fields at the end)
+			continue
+		}
+		// Ensure endIndex does not exceed actual payload length
+		if endIndex > length {
+			endIndex = length // Adjust endIndex to the actual payload length
+		}
+		// Check if adjusted range is still valid
+		if startIndex >= endIndex {
+			if currentDebugMode { // Only log validation warnings if debugging
+				log.Printf("Convert2MQTT Warning: Invalid adjusted place [%d:%d) for field '%s' (CAN ID %X) with payload length %d. Skipping field.", startIndex, endIndex, field.Key, id, length)
+			}
 			continue
 		}
 
@@ -126,20 +79,11 @@ func convert2MQTT(id int, length int, payload [8]byte) (mqttResponse, error) {
 
 		switch field.Type {
 		case "error":
-			value = "error" // Store as string
-		case "unixtime": // If config still uses "unixtime", convert it but it will be overwritten later
-			if len(subSlice) >= 4 {
-				unixSec := binary.LittleEndian.Uint32(subSlice[0:4])
-				var unixMs uint32 = 0
-				if len(subSlice) >= 8 {
-					unixMs = binary.LittleEndian.Uint32(subSlice[4:8])
-				}
-				value = float64(unixSec) + float64(unixMs)/1000.0
-			} else {
-				fieldErr = fmt.Errorf("'unixtime' field '%s' needs at least 4 bytes, got %d", field.Key, len(subSlice))
-			}
+			value = "error"
+		case "unixtime": // Deprecated: Ignore this field type from config
+			continue // Skip to next field
 		case "byte", "string":
-			value = string(subSlice) // Store as string
+			value = string(subSlice)
 		case "int8_t":
 			if len(subSlice) >= 1 {
 				value = field.Factor * float64(int8(subSlice[0]))
@@ -187,83 +131,87 @@ func convert2MQTT(id int, length int, payload [8]byte) (mqttResponse, error) {
 		}
 
 		if fieldErr != nil {
-			log.Printf("convert2MQTT Warning: Error processing field '%s' in CAN ID %s: %v. Skipping.", field.Key, idStr, fieldErr)
+			log.Printf("Convert2MQTT Warning: Error processing field '%s' in CAN ID %X: %v. Skipping.", field.Key, id, fieldErr) // Log processing errors regardless of debug mode
 			if processingError == nil {
 				processingError = fieldErr
-			} // Store first error
+			}
 			continue
 		}
-		jsonData[field.Key] = value // Add successfully processed field to map
+		jsonData[field.Key] = value
 	} // End field loop
 
-	// --- Step 2: Add/Overwrite timestamp with translator's current time ---
-	// Use Unix float seconds (seconds since epoch with nanosecond precision)
+	// Add/Overwrite timestamp
 	jsonData["timestamp"] = float64(time.Now().UnixNano()) / 1e9
 
-	// --- Step 3: Marshal the final map to JSON ---
+	// Marshal final map
+	// Use standard json.Marshal, switch to faster lib only if profiling shows it's a bottleneck
 	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
-		log.Printf("convert2MQTT Error: Failed to marshal final JSON for CAN ID %s: %v", idStr, err)
+		log.Printf("Convert2MQTT Error: Failed to marshal final JSON for CAN ID %X: %v", id, err)
 		res.Topic = "error/processing"
-		res.Payload = fmt.Sprintf(`{"error":"failed to marshal JSON for CAN ID %s", "details":"%v"}`, idStr, err)
-		// Return marshalling error, or the first field processing error if it exists
+		res.Payload = fmt.Sprintf(`{"error":"failed to marshal JSON for CAN ID %X", "details":"%v"}`, id, err)
 		if processingError != nil {
-			return res, fmt.Errorf("field processing error (%v) and marshalling error (%v)", processingError, err)
+			return res, convRule, fmt.Errorf("field processing error (%v) and marshalling error (%v)", processingError, err)
 		}
-		return res, err
+		return res, convRule, err
 	}
 
 	res.Payload = string(jsonBytes)
 
-	if debugMode {
-		logPayload := res.Payload
-		if len(logPayload) > 100 {
-			logPayload = logPayload[:100] + "..."
-		}
-		log.Printf("convert2MQTT: ID=%s -> Topic=%s, Payload=%s", idStr, res.Topic, logPayload)
-	}
+	// Debug logging moved to caller (processCANFrame)
 
-	// Return success (nil error) or the first field processing error encountered
-	return res, processingError
+	// Return success or first field processing error
+	return res, convRule, processingError
 }
 
-// convert2CAN converts an MQTT topic and JSON payload []byte to a CAN frame.
-// (No changes needed here for timestamp override, as that applies to CAN->MQTT)
-// Returns can.Frame and error.
-func convert2CAN(topic string, payload []byte) (can.Frame, error) {
-	frame := can.Frame{} // Initialize empty frame
+// Convert2CANUsingMap converts an MQTT message using the preprocessed MqttRuleMap.
+// Returns can.Frame, the matching *config.Conversion rule, and error.
+// --- EXPORTED ---
+func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conversion, error) {
+	frame := can.Frame{}
 
-	convRule, err := getPayloadConv(topic, "mqtt2can")
-	if err != nil {
-		return frame, err // Return the error from getPayloadConv
+	ConfigLock.RLock()                     // Use exported name - Read lock for accessing the map
+	convRule, exists := MqttRuleMap[topic] // Use exported name
+	currentDebugMode := debugMode          // Read debug flag under lock
+	ConfigLock.RUnlock()                   // Use exported name - Release lock
+
+	if !exists {
+		return frame, nil, fmt.Errorf("no matching conversion rule found")
 	}
 
+	// Unmarshal JSON
 	var data map[string]interface{}
-	err = json.Unmarshal(payload, &data)
+	// Use standard json.Unmarshal, switch to faster lib only if needed
+	err := json.Unmarshal(payload, &data)
 	if err != nil {
 		err = fmt.Errorf("failed to unmarshal JSON payload for topic %s: %w", topic, err)
-		log.Printf("convert2CAN Error: %v", err)
-		return frame, err // Return empty frame and JSON error
+		// Log locally or let caller handle? Log here for now.
+		log.Printf("Convert2CAN Error: %v", err)
+		return frame, convRule, err
 	}
 
-	var buffer [8]uint8 // CAN frame data buffer
+	var buffer [8]uint8
+	var fieldProcessingError error = nil // Track first error during field processing
 
 	for _, field := range convRule.Payload {
 		value, keyExists := data[field.Key]
 		if !keyExists {
-			continue // Skip if key is missing in JSON
+			continue // Skip if key missing
 		}
 
-		// Skip the timestamp field if present in MQTT->CAN rule, it's usually added by translator
-		if field.Key == "timestamp" {
+		// Skip timestamp, unixtime types when converting MQTT->CAN
+		if field.Key == "timestamp" || field.Type == "unixtime" {
 			continue
 		}
 
 		startIndex := field.Place[0]
 		endIndex := field.Place[1]
 
+		// Basic validation (could be done during config loading)
 		if startIndex < 0 || startIndex >= 8 || endIndex <= startIndex || endIndex > 8 {
-			log.Printf("convert2CAN Warning: Invalid place %v for field '%s' in topic %s rule. Skipping field.", field.Place, field.Key, topic)
+			if currentDebugMode { // Only log validation warnings if debugging
+				log.Printf("Convert2CAN Warning: Invalid place %v for field '%s' in topic %s rule. Skipping field.", field.Place, field.Key, topic)
+			}
 			continue
 		}
 
@@ -278,44 +226,49 @@ func convert2CAN(topic string, payload []byte) (can.Frame, error) {
 			}
 			byteVal := []byte(strVal)
 			count := copy(buffer[startIndex:endIndex], byteVal)
-			if count < len(byteVal) && debugMode {
-				log.Printf("convert2CAN Warning: String value for key '%s' truncated for topic %s.", field.Key, topic)
+			if count < len(byteVal) && currentDebugMode {
+				log.Printf("Convert2CAN Warning: String value for key '%s' truncated for topic %s.", field.Key, topic)
 			}
-		case "unixtime":
-			continue // Ignore unixtime field in MQTT->CAN rules
 		default: // Handle numeric types
 			numVal, ok := value.(float64)
-			if !ok {
-				// Allow integers directly? json unmarshals numbers to float64 by default
-				// Check if it's an integer type if float64 fails
+			if !ok { // Try converting from integer types if float64 fails
 				switch v := value.(type) {
 				case int:
 					numVal = float64(v)
+					ok = true
 				case int8:
 					numVal = float64(v)
+					ok = true
 				case int16:
 					numVal = float64(v)
+					ok = true
 				case int32:
 					numVal = float64(v)
+					ok = true
 				case int64:
 					numVal = float64(v)
+					ok = true
 				case uint:
 					numVal = float64(v)
+					ok = true
 				case uint8:
 					numVal = float64(v)
+					ok = true
 				case uint16:
 					numVal = float64(v)
+					ok = true
 				case uint32:
 					numVal = float64(v)
+					ok = true
 				case uint64:
 					numVal = float64(v)
-				default:
-					convErr = fmt.Errorf("expected number for key '%s', got %T", field.Key, value)
-					break // Break inner switch
+					ok = true
+					// Add other potential numeric types if necessary
 				}
-				if convErr != nil {
-					break
-				} // Break outer switch if type error
+			}
+			if !ok {
+				convErr = fmt.Errorf("expected number for key '%s', got %T", field.Key, value)
+				break
 			}
 
 			valToConvert := numVal
@@ -326,102 +279,124 @@ func convert2CAN(topic string, payload []byte) (can.Frame, error) {
 				break
 			}
 
+			// Range and type checks before conversion
+			var targetVal interface{}
 			switch field.Type {
 			case "int8_t":
-				if endIndex != startIndex+1 {
-					convErr = fmt.Errorf("place %v invalid for int8_t", field.Place)
-					break
-				}
 				if valToConvert < math.MinInt8 || valToConvert > math.MaxInt8 {
 					convErr = fmt.Errorf("value %f out of range for int8_t", valToConvert)
 					break
 				}
-				buffer[startIndex] = byte(int8(valToConvert))
+				targetVal = int8(valToConvert)
 			case "uint8_t":
-				if endIndex != startIndex+1 {
-					convErr = fmt.Errorf("place %v invalid for uint8_t", field.Place)
-					break
-				}
 				if valToConvert < 0 || valToConvert > math.MaxUint8 {
 					convErr = fmt.Errorf("value %f out of range for uint8_t", valToConvert)
 					break
 				}
-				buffer[startIndex] = uint8(valToConvert)
+				targetVal = uint8(valToConvert)
 			case "int16_t":
-				if endIndex != startIndex+2 {
-					convErr = fmt.Errorf("place %v invalid for int16_t", field.Place)
-					break
-				}
 				if valToConvert < math.MinInt16 || valToConvert > math.MaxInt16 {
 					convErr = fmt.Errorf("value %f out of range for int16_t", valToConvert)
 					break
 				}
-				binary.LittleEndian.PutUint16(buffer[startIndex:endIndex], uint16(int16(valToConvert)))
+				targetVal = int16(valToConvert)
 			case "uint16_t":
-				if endIndex != startIndex+2 {
-					convErr = fmt.Errorf("place %v invalid for uint16_t", field.Place)
-					break
-				}
 				if valToConvert < 0 || valToConvert > math.MaxUint16 {
 					convErr = fmt.Errorf("value %f out of range for uint16_t", valToConvert)
 					break
 				}
-				binary.LittleEndian.PutUint16(buffer[startIndex:endIndex], uint16(valToConvert))
+				targetVal = uint16(valToConvert)
 			case "int32_t":
-				if endIndex != startIndex+4 {
-					convErr = fmt.Errorf("place %v invalid for int32_t", field.Place)
-					break
-				}
 				if valToConvert < math.MinInt32 || valToConvert > math.MaxInt32 {
 					convErr = fmt.Errorf("value %f out of range for int32_t", valToConvert)
 					break
 				}
-				binary.LittleEndian.PutUint32(buffer[startIndex:endIndex], uint32(int32(valToConvert)))
+				targetVal = int32(valToConvert)
 			case "uint32_t":
-				if endIndex != startIndex+4 {
-					convErr = fmt.Errorf("place %v invalid for uint32_t", field.Place)
-					break
-				}
 				if valToConvert < 0 || valToConvert > math.MaxUint32 {
 					convErr = fmt.Errorf("value %f out of range for uint32_t", valToConvert)
 					break
 				}
-				binary.LittleEndian.PutUint32(buffer[startIndex:endIndex], uint32(valToConvert))
+				targetVal = uint32(valToConvert)
 			case "float": // Assume float32
-				if endIndex != startIndex+4 {
-					convErr = fmt.Errorf("place %v invalid for float32", field.Place)
-					break
-				}
-				binary.LittleEndian.PutUint32(buffer[startIndex:endIndex], math.Float32bits(float32(valToConvert)))
+				// Check range if necessary, though less common for float32
+				targetVal = float32(valToConvert)
 			default:
 				convErr = fmt.Errorf("unknown numeric field type '%s' for key '%s'", field.Type, field.Key)
+			}
+			if convErr != nil {
+				break
+			} // Break outer switch if range/type error
+
+			// Place value into buffer
+			switch v := targetVal.(type) {
+			case int8:
+				if endIndex == startIndex+1 {
+					buffer[startIndex] = byte(v)
+				} else {
+					convErr = fmt.Errorf("place %v invalid for int8_t", field.Place)
+				}
+			case uint8:
+				if endIndex == startIndex+1 {
+					buffer[startIndex] = v
+				} else {
+					convErr = fmt.Errorf("place %v invalid for uint8_t", field.Place)
+				}
+			case int16:
+				if endIndex == startIndex+2 {
+					binary.LittleEndian.PutUint16(buffer[startIndex:endIndex], uint16(v))
+				} else {
+					convErr = fmt.Errorf("place %v invalid for int16_t", field.Place)
+				}
+			case uint16:
+				if endIndex == startIndex+2 {
+					binary.LittleEndian.PutUint16(buffer[startIndex:endIndex], v)
+				} else {
+					convErr = fmt.Errorf("place %v invalid for uint16_t", field.Place)
+				}
+			case int32:
+				if endIndex == startIndex+4 {
+					binary.LittleEndian.PutUint32(buffer[startIndex:endIndex], uint32(v))
+				} else {
+					convErr = fmt.Errorf("place %v invalid for int32_t", field.Place)
+				}
+			case uint32:
+				if endIndex == startIndex+4 {
+					binary.LittleEndian.PutUint32(buffer[startIndex:endIndex], v)
+				} else {
+					convErr = fmt.Errorf("place %v invalid for uint32_t", field.Place)
+				}
+			case float32:
+				if endIndex == startIndex+4 {
+					binary.LittleEndian.PutUint32(buffer[startIndex:endIndex], math.Float32bits(v))
+				} else {
+					convErr = fmt.Errorf("place %v invalid for float32", field.Place)
+				}
+				// No default needed here as type checked above
 			}
 		} // End type switch
 
 		if convErr != nil {
-			log.Printf("convert2CAN Warning: Conversion error for key '%s' in topic %s: %v. Skipping field.", field.Key, topic, convErr)
-			// Optionally return error immediately: return frame, convErr
+			log.Printf("Convert2CAN Warning: Conversion error for key '%s' in topic %s: %v. Skipping field.", field.Key, topic, convErr) // Log conversion errors regardless of debug mode
+			if fieldProcessingError == nil {
+				fieldProcessingError = convErr
+			} // Store first error
 		}
 	} // End field loop
 
+	// Parse CAN ID (already validated during config load/preprocess)
 	canidStr := strings.TrimPrefix(convRule.CanID, "0x")
-	canidNr, err := strconv.ParseUint(canidStr, 16, 32)
-	if err != nil {
-		err = fmt.Errorf("failed to parse CAN ID '%s' for topic %s: %w", convRule.CanID, topic, err)
-		log.Printf("convert2CAN Error: %v", err)
-		return frame, err // Return empty frame and ID parse error
-	}
+	canidNr, _ := strconv.ParseUint(canidStr, 16, 32) // Error ignored, should be pre-validated
 
 	frame.ID = uint32(canidNr)
 	frame.Length = uint8(convRule.Length)
 	if frame.Length > 8 {
-		log.Printf("convert2CAN Warning: Configured length %d for CAN ID %X exceeds 8 bytes. Clamping to 8.", convRule.Length, frame.ID)
 		frame.Length = 8
-	}
+	} // Clamp length
 	frame.Data = buffer
 
-	if debugMode {
-		log.Printf("convert2CAN: Topic=%s -> CAN Frame: ID=%X Len=%d Data=%X", topic, frame.ID, frame.Length, frame.Data[:frame.Length])
-	}
-	return frame, nil // Return successful frame and nil error
+	// Debug logging moved to caller (processMQTTMessage)
+
+	// Return successful frame or the first field processing error
+	return frame, convRule, fieldProcessingError
 }

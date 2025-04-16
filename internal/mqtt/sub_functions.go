@@ -1,10 +1,12 @@
 package mqtt
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -17,11 +19,64 @@ import (
 // - If using a channel `myChan chan T`: return len(myChan) // Number of items currently in buffer
 // - If using a channel `myChan chan T`: return int(float64(len(myChan)) / float64(cap(myChan)) * 100) // Percentage full
 // - If using a slice `mySlice []T`: return len(mySlice)
-func getBufferUsage() int {
-	// Placeholder implementation: returns 0
-	// TODO: Implement actual buffer usage measurement here.
-	log.Println("Warning: getBufferUsage() is using a placeholder implementation.")
-	return 0 // Replace with your actual buffer measurement
+
+func getBufferUsage() BufferUsage {
+	file, err := os.Open("/proc/meminfo")
+	if err != nil {
+		log.Printf("Error opening /proc/meminfo: %v", err)
+		return BufferUsage{}
+	}
+	defer file.Close()
+
+	var buffers, cached, memTotal, memAvailable uint64
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		key := fields[0]
+		value, err := strconv.ParseUint(fields[1], 10, 64)
+		if err != nil {
+			continue
+		}
+
+		switch key {
+		case "Buffers:":
+			buffers = value
+		case "Cached:":
+			cached = value
+		case "MemTotal:":
+			memTotal = value
+		case "MemAvailable:":
+			memAvailable = value
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("Error reading /proc/meminfo: %v", err)
+		return BufferUsage{}
+	}
+
+	// Calculate buffer/cache usage
+	usedKB := buffers + cached
+	usedMB := int(usedKB / 1024)
+	availableMB := int(memAvailable / 1024)
+
+	// Calculate percentage of total memory used by buffers/cache
+	usedPercent := 0.0
+	if memTotal > 0 {
+		usedPercent = (float64(usedKB) / float64(memTotal)) * 100
+	}
+
+	return BufferUsage{
+		UsedMB:      usedMB,
+		AvailableMB: availableMB,
+		UsedPercent: usedPercent,
+	}
 }
 
 func getTotalMemory() uint64 {

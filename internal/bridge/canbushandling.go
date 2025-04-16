@@ -1,66 +1,83 @@
 package bridge
 
 import (
-	"fmt" // Added for error formatting
+	"fmt"
 	"log"
+	"strings"
 	"sync"
 
-	"github.com/brutella/can" // Use the external CAN library
+	// Added for potential future use (e.g., timeouts)
+	"github.com/brutella/can"
 )
 
-// Note: Variables like 'bus', 'csi', 'csiLock', 'timeSleepValue', 'debugMode'
-// are defined in main.go and accessed directly as package variables.
-
-var csiLock sync.Mutex // CAN subscribed IDs Mutex
+// csiLock still protects the 'csi' slice used for filtering
+var csiLock sync.Mutex
 
 // startCanHandling initializes the CANBus Interface.
-// It runs in a goroutine if configured via runInThread.
 func startCanHandling(canInterface string) {
-	startFunc := func() {
-		if runInThread { // Only call Done if running in goroutine managed by wg
-			defer wg.Done()
+	// Ensure wg.Done is called when this function/goroutine exits
+	defer func() {
+		log.Println("CAN Handler: Exiting...")
+		if r := recover(); r != nil {
+			log.Printf("CAN Handler PANICKED: %v", r)
+			// Optionally perform more cleanup or logging on panic
 		}
-		log.Printf("CAN Handler: Initializing CAN-Bus interface %s...", canInterface)
-		var err error
-		bus, err = can.NewBusForInterfaceWithName(canInterface)
-		if err != nil {
-			log.Fatalf("CAN Handler: Fatal error activating CAN-Bus interface %s: %v", canInterface, err)
-			// No recovery possible here, so Fatal is appropriate
-		}
-		// Subscribe to all frames initially, filtering happens in handleCANFrame
-		bus.SubscribeFunc(handleCANFrame)
+		wg.Done() // Decrement waitgroup counter for the CAN handler task
+	}()
 
-		log.Printf("CAN Handler: Connecting and starting publish loop on %s...", canInterface)
-		err = bus.ConnectAndPublish() // This blocks until the bus disconnects or an error occurs
-		if err != nil {
-			// Log fatal error if the connection/publish loop fails critically
-			// This indicates the CAN interface is likely down.
-			log.Fatalf("CAN Handler: Fatal error in CAN bus connection/publish loop on %s: %v", canInterface, err)
-		}
-		log.Printf("CAN Handler: Disconnected from CAN interface %s.", canInterface)
+	log.Printf("CAN Handler: Initializing CAN-Bus interface %s...", canInterface)
+	var err error
+	bus, err = can.NewBusForInterfaceWithName(canInterface)
+	if err != nil {
+		// Use Fatalf only if it should terminate the whole app. Otherwise, log and maybe exit goroutine?
+		log.Printf("CAN Handler: Fatal error activating CAN-Bus interface %s: %v. Handler exiting.", canInterface, err)
+		// Depending on requirements, maybe trigger app shutdown here?
+		return // Exit this function/goroutine
 	}
 
-	if runInThread {
-		log.Println("CAN Handler: Starting in separate goroutine.")
-		go startFunc()
-	} else {
-		log.Println("CAN Handler: Starting in main thread (will block).")
-		startFunc() // This will block if ConnectAndPublish blocks
+	// Subscribe using the filtering dispatcher
+	bus.SubscribeFunc(dispatchCANFrame)
+
+	log.Printf("CAN Handler: Connecting and starting publish loop on %s...", canInterface)
+	// Run ConnectAndPublish in a separate goroutine so we can select on stopChan
+	connectAndPublishDone := make(chan struct{}) // Signal channel for completion
+	go func() {
+		defer close(connectAndPublishDone) // Signal completion when done
+		err := bus.ConnectAndPublish()     // This blocks
+		if err != nil {
+			// Log error if the loop terminates unexpectedly
+			// Avoid logging "interrupted" error if caused by bus.Disconnect() during shutdown
+			if !strings.Contains(err.Error(), "interrupted") { // Adjust string check as needed for your CAN library
+				log.Printf("CAN Handler: Error in CAN bus connection/publish loop on %s: %v", canInterface, err)
+			}
+		}
+		log.Printf("CAN Handler: ConnectAndPublish loop terminated for %s.", canInterface)
+		// If ConnectAndPublish exits, we might want to signal the main app or attempt reconnection?
+		// For now, it just stops processing CAN frames.
+	}()
+
+	log.Printf("CAN Handler: Running. Waiting for stop signal or disconnect...")
+
+	// Wait for EITHER the stop signal OR the ConnectAndPublish loop to finish
+	select {
+	case <-stopChan: // Wait until stopChan is closed
+		log.Println("CAN Handler: Stop signal received.")
+		// Disconnect is handled in Stop() function now
+	case <-connectAndPublishDone:
+		log.Println("CAN Handler: ConnectAndPublish loop finished unexpectedly.")
+		// Optional: Signal main application or attempt recovery
 	}
 }
 
-// handleCANFrame is called by the CAN library for every received frame.
-// It filters based on subscribed IDs and calls handleCAN for processing.
-func handleCANFrame(frame can.Frame) {
-	// Correctly mask the ID to get the 29-bit identifier (removes flags)
-	// Use the standard 0x1FFFFFFF mask for 29-bit IDs.
-	// For standard 11-bit IDs, the mask would be 0x7FF.
-	// Assuming extended IDs are possible/used.
+// dispatchCANFrame filters incoming frames and sends them to the worker channel.
+func dispatchCANFrame(frame can.Frame) {
+	// Mask ID correctly
 	idToMatch := frame.ID & 0x1FFFFFFF
 
+	// Check if subscribed using the local 'csi' slice
 	idSubscribed := false
-	csiLock.Lock() // Protect access to csi slice
-	// Check if the ID is in our subscription list
+	csiLock.Lock()
+	// Optimization: If 'csi' becomes very large, consider a map[uint32]struct{} for faster lookups
 	for _, subscribedID := range csi {
 		if subscribedID == idToMatch {
 			idSubscribed = true
@@ -70,75 +87,57 @@ func handleCANFrame(frame can.Frame) {
 	csiLock.Unlock()
 
 	if idSubscribed {
-		if debugMode {
-			log.Printf("CAN Handler: ID %X is subscribed. Processing frame.", idToMatch)
+		// Send to worker channel instead of processing directly
+		select {
+		case <-stopChan: // Check stop channel first to prevent sending to closed channel
+			// log.Printf("CAN Dispatcher: Stop signal received while dispatching ID %X. Exiting dispatch.", idToMatch) // Reduce noise
+			return // Stop dispatching if stop signal received
+		case canWorkChan <- frame:
+			// Successfully dispatched
+			// Logging here is too verbose for high throughput
+			// if debugMode { log.Printf("CAN Dispatcher: Frame ID %X sent to worker.", idToMatch) }
+		default:
+			// Channel full - log if debugging, indicates workers can't keep up
+			ConfigLock.RLock() // Safely read debug mode
+			dbg := debugMode
+			ConfigLock.RUnlock()
+			if dbg {
+				log.Printf("CAN Dispatcher Warning: CAN work channel full. Discarding frame ID %X.", idToMatch)
+			}
+			// Optional: Increment dropped message counter (using atomic operations for safety)
 		}
-		// Call the processing function in receivehandling.go
-		// handleCAN now includes the time.Sleep logic internally
-		handleCAN(frame)
-	} else {
-		// Reduce log spam for unsubscribed IDs, only log if debugMode is explicitly high?
-		// if debugMode {
-		//	 log.Printf("CAN Handler: ID %X not subscribed. Frame ignored.", idToMatch)
-		// }
 	}
+	// Ignore unsubscribed frames silently unless debugging is very high
 }
 
-// canSubscribe adds a CAN ID to the subscription list if not already present.
-func canSubscribe(id uint32) {
-	csiLock.Lock()
-	defer csiLock.Unlock() // Ensure unlock even if errors occur later (though unlikely here)
+// canSubscribe is NO LONGER USED directly. subscribeInitialCanIDs updates 'csi'.
 
-	found := false
-	for _, existingID := range csi {
-		if existingID == id {
-			found = true
-			break
-		}
-	}
-	if !found {
-		csi = append(csi, id)
-		if debugMode {
-			log.Printf("CAN Handler: Subscribed to CAN ID: %X", id)
-		}
-	} else {
-		if debugMode {
-			// log.Printf("CAN Handler: CAN ID %X already subscribed.", id) // Reduce noise
-		}
-	}
-}
-
-// clearCanSubscriptions removes all CAN ID subscriptions.
+// clearCanSubscriptions removes all CAN ID subscriptions from the local 'csi' list.
 func clearCanSubscriptions() {
 	csiLock.Lock()
 	defer csiLock.Unlock()
 	if len(csi) > 0 {
-		log.Println("CAN Handler: Clearing existing CAN subscriptions.")
+		log.Println("CAN Handler: Clearing existing CAN subscriptions filter list.")
 		csi = []uint32{} // Reset the slice
 	}
 }
 
-// canPublish sends a CAN frame to the bus.
-// It now returns an error if the publish operation fails.
+// canPublish sends a CAN frame. Logs errors.
 func canPublish(frame can.Frame) error {
+	// Bus check might be redundant if startCanHandling ensures bus is valid
 	if bus == nil {
 		err := fmt.Errorf("CAN bus not initialized, cannot publish frame ID %X", frame.ID)
 		log.Printf("Error: %v", err)
 		return err
 	}
 
-	if debugMode {
-		log.Printf("CAN Handler: Publishing CAN Frame: ID=%X Len=%d Data=%X", frame.ID, frame.Length, frame.Data[:frame.Length])
-	}
+	// Debug log moved to caller (mqttProcessor)
 
-	// The brutella/can library handles setting EFF/RTR flags based on ID and frame properties.
 	err := bus.Publish(frame)
 	if err != nil {
-		// Log non-fatal error, allow application to continue if possible
 		log.Printf("CAN Handler: Error publishing CAN frame (ID: %X): %v", frame.ID, err)
-		// Consider adding retry logic or specific error handling here if needed
-		return err // Return the error
+		// Return error for caller to handle if needed
+		return err
 	}
-	// Success
-	return nil
+	return nil // Success
 }
