@@ -6,12 +6,14 @@ import (
 	"log"
 	"runtime"
 	"strconv"
+	"time" // Added for timestamp
 
 	bridge "github.com/farouk15160/Translater-code-new/internal/bridge"
 	config "github.com/farouk15160/Translater-code-new/internal/config"
 )
 
 // handleConfigUpdate processes the JSON payload from the "translater/run" topic.
+// It calls the appropriate Setters in the bridge package.
 func handleConfigUpdate(payload string) {
 	log.Printf("[handleConfigUpdate] Received config update on 'translater/run': %s", payload)
 
@@ -23,134 +25,127 @@ func handleConfigUpdate(payload string) {
 	}
 
 	// Apply changes based on fields present in the JSON
+	log.Println("Applying configuration changes...")
 	if cfgPayload.Debug != nil {
 		bridge.SetDbg(*cfgPayload.Debug) // Directly pass the bool value
-		log.Printf("Config Update: Set debug mode to: %t", *cfgPayload.Debug)
 	}
-
 	if cfgPayload.Direction != nil {
-		// Convert the int direction to string for SetConfDirMode
 		dirStr := strconv.Itoa(*cfgPayload.Direction)
-		bridge.SetConfDirMode(dirStr) // Pass the direction value as string "0", "1", or "2"
-		// SetConfDirMode already logs the change and validates the value
+		bridge.SetConfDirMode(dirStr)
 	}
-
 	if cfgPayload.File != nil {
-		// Warning: Runtime change needs ReloadConfig logic in bridge package
-		log.Printf("Config Update: Request to change config file to '%s'. Runtime reload NOT implemented.", *cfgPayload.File)
-		bridge.SetC2mf(*cfgPayload.File) // Sets the variable, but doesn't reload yet
-		// bridge.ReloadConfig() // Uncomment if reload logic is implemented in bridge
+		bridge.SetC2mf(*cfgPayload.File) // Sets the variable AND triggers reload via bridge logic
 	}
-
 	if cfgPayload.Username != nil {
 		bridge.SetUserName(*cfgPayload.Username) // Directly pass the string value
-		// SetUserName already logs the change
 	}
-
 	if cfgPayload.SleepTime != nil {
-		// Convert the int64 sleep time (microseconds) to string for SetTimeSleepValue
 		sleepStr := strconv.FormatInt(*cfgPayload.SleepTime, 10)
-		bridge.SetTimeSleepValue(sleepStr) // Pass microseconds as string
-		// SetTimeSleepValue already logs the change and parses the string
+		bridge.SetTimeSleepValue(sleepStr)
 	}
-
 	log.Println("[handleConfigUpdate] Finished processing config update.")
 }
 
-// handleTranslatorStatus gathers system information and publishes it.
-func handleTranslatorStatus(topic string, payload string, mqttClient *Client) { // Receive *Client
-	log.Printf("[handleTranslatorStatus] Received request for status on topic: %s", topic)
-	_ = payload
+// handleTranslatorStatus gathers system information and publishes it to "translater/status".
+// It is triggered by receiving a message on "translater/process".
+func handleTranslatorStatus(requestTopic string, payload string, mqttClient *Client) {
+	log.Printf("[handleTranslatorStatus] Received request on topic '%s', gathering status...", requestTopic)
+	_ = payload             // Payload of request message is currently ignored
+	startTime := time.Now() // Start timing the handler itself
 
 	var status TranslatorStatus
-
-	// --- 1. Get RAM Usage ---
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	status.RAMUsage = m.Alloc
 
-	// --- 2. Get Buffer Usage ---
-	// This depends entirely on how you buffer data in your application.
-	// You'll need to replace this with your actual buffer usage logic.
-	status.BufferUsage = getBufferUsage() // Implement this function
+	status.RAMUsage = m.Alloc             // RAM allocated by heap objects
+	status.BufferUsage = getBufferUsage() // Get buffer usage (needs custom implementation)
+	status.CPUUsageCores = getCPUUsage()  // Get CPU usage (overall in this implementation)
+	status.Temperature = getTemperature() // Get system temperature
+	status.Uptime = getUptime()           // Get system uptime
+	gatherTime := time.Now()              // Time after gathering stats
 
-	// --- 3. Get CPU Usage ---
-	// Getting precise CPU usage per core is OS-specific and complex in Go.
-	// This is a simplified example; you might need to use external libraries
-	// or OS-specific methods for accurate CPU monitoring.
-	status.CPUUsageCores = getCPUUsage() // Implement this function
-
-	// --- 4. Get Temperature ---
-	// Getting system temperature is OS-specific. Go doesn't provide
-	// a standard library for this. You might need external tools or libraries.
-	status.Temperature = getTemperature() // Implement this function
-
-	// --- 5. Get Uptime ---
-	// Uptime is also OS-specific. This is a placeholder.
-	status.Uptime = getUptime() // Implement this function
-
-	// --- Convert status to JSON ---
+	// --- Convert status to human-readable JSON ---
 	readableStatus := ReadableTranslatorStatus{
 		BufferUsage:   status.BufferUsage,
 		CPUUsageCores: make(map[string]string),
-		Temperature:   fmt.Sprintf("%.1f °C", status.Temperature), // Format with unit
-		Uptime:        formatUptime(status.Uptime),                // Format uptime
+		Temperature:   fmt.Sprintf("%.1f°C", status.Temperature),
+		Uptime:        formatUptime(status.Uptime),
+	}
+	if status.Temperature < 0 {
+		readableStatus.Temperature = "N/A"
 	}
 
-	// Calculate RAM usage percentage
-	var totalMemory uint64 // You'll need to implement a function to get total system memory
-	totalMemory = getTotalMemory()
-	ramUsagePercent := (float64(status.RAMUsage) / float64(totalMemory)) * 100
-	readableStatus.RAMUsage = fmt.Sprintf("%.2f%%", ramUsagePercent)
-
-	// Populate CPU usage with core labels and format as percentage
-	for i, usage := range status.CPUUsageCores {
-		readableStatus.CPUUsageCores[fmt.Sprintf("core_%d", i+1)] = fmt.Sprintf("%.2f%%", usage*100)
+	totalMemory := getTotalMemory()
+	if totalMemory > 0 {
+		ramUsagePercent := (float64(status.RAMUsage) / float64(totalMemory)) * 100
+		readableStatus.RAMUsage = fmt.Sprintf("%.2f%% (%d MB)", ramUsagePercent, status.RAMUsage/(1024*1024))
+	} else {
+		readableStatus.RAMUsage = fmt.Sprintf("%d MB (Total unknown)", status.RAMUsage/(1024*1024))
 	}
 
-	// Convert the readable status to JSON
-	jsonBytes, err := json.Marshal(readableStatus)
+	if len(status.CPUUsageCores) > 0 {
+		readableStatus.CPUUsageCores["overall"] = fmt.Sprintf("%.2f%%", status.CPUUsageCores[0]*100)
+	} else {
+		readableStatus.CPUUsageCores["overall"] = "N/A"
+	}
+
+	// *** Use json.Marshal instead of json.MarshalIndent for slight speed increase ***
+	jsonBytes, err := json.Marshal(readableStatus) // Changed here
 	if err != nil {
-		log.Printf("Error marshalling status to JSON: %v", err)
+		log.Printf("Error marshalling readable status to JSON: %v", err)
 		return
 	}
-
-	// Convert the byte slice to a string
 	payloadString := string(jsonBytes)
+	marshalTime := time.Now() // Time after marshalling
 
-	// Use the retained publish function from the client
-	// MQTT Publish
-	if err := mqttClient.PublishRetained(topic, payloadString); err != nil { // Changed topic slightly
-		log.Printf("Error publishing retained status to %v: %v", topic, err)
+	// --- Publish the status to "translater/status" with retain flag ---
+	statusTopic := "translater/status"
+	if err := mqttClient.PublishRetained(statusTopic, payloadString); err != nil {
+		// Error handled async in publisher
 	} else {
-
-		log.Printf("MQTT Publish -> Topic=%s | Payload=%s", topic, payloadString)
+		log.Printf("Initiated retained status update publish to '%s'", statusTopic)
 	}
+	publishInitiateTime := time.Now() // Time after initiating publish
 
+	// Log detailed timing if needed
+	if mqttClient.debug { // Only log detailed perf if debug is on
+		log.Printf("[Perf Detail] Status Handler Timing: Gather=%v, Marshal=%v, PublishInit=%v, Total=%v",
+			gatherTime.Sub(startTime),
+			marshalTime.Sub(gatherTime),
+			publishInitiateTime.Sub(marshalTime),
+			time.Since(startTime))
+	}
 }
 
 // PublishStartInfo publishes a retained message indicating the translator is running.
 func PublishStartInfo(c *Client) { // Expects *mqtt.Client
+	startTopic := "translater/start"
 	startMessage := "CAN-MQTT Translator is up and running"
-	ip := getIPAddress() // Get local IP
+	ip := getIPAddress()
+
+	uname := "unknown"
+	if config.UsernameFlag != nil && *config.UsernameFlag != "" {
+		uname = *config.UsernameFlag
+	}
 
 	payloadMap := map[string]string{
 		"message":    startMessage,
 		"ip_address": ip,
-		"username":   *config.UsernameFlag,
+		"username":   uname,
+		"timestamp":  strconv.FormatInt(time.Now().Unix(), 10),
 	}
 
-	jsonBytes, err := json.Marshal(payloadMap)
+	// Use MarshalIndent here as it only happens once on startup
+	jsonBytes, err := json.MarshalIndent(payloadMap, "", "  ")
 	if err != nil {
 		log.Printf("Error marshaling start info JSON: %v", err)
 		return
 	}
 	jsonPayload := string(jsonBytes)
 
-	// Use the retained publish function from the client
-	if err := c.PublishRetained("translater/start", jsonPayload); err != nil { // Changed topic slightly
-		log.Printf("Error publishing retained status to 'translater/start': %v", err)
+	if err := c.PublishRetained(startTopic, jsonPayload); err != nil {
+		// Error handled async in publisher
 	} else {
-		log.Printf("Published retained message to 'translater/start': %s", jsonPayload)
+		log.Printf("Initiated retained start info publish to '%s'", startTopic)
 	}
 }

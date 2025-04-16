@@ -1946,7 +1946,7 @@
             ]
         },
         {
-            "topic": "translater/process",
+            "topic": "translater/status",
             "canid": "0xE6",
             "length": 0,
             "payload": [

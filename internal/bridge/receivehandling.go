@@ -2,28 +2,29 @@ package bridge
 
 import (
 	"encoding/json"
+	"fmt" // Added for potential error formatting
 	"log"
 	"strconv"
-	"strings"
+	"time" // Added for timing
 
 	"github.com/brutella/can"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
-	// Import config package if needed for struct types directly
-	// "github.com/farouk15160/Translater-code-new/internal/config"
+	// Import config only if needed for types directly, prefer passing data
+	// config "github.com/farouk15160/Translater-code-new/internal/config"
 )
 
-// --- Callback Type for Publishing --- (Matches mqtt.PublishFunc type)
+// --- Callback Type for Publishing ---
 type PublishFunc func(topic, payload string) error
 
 // --- Variable to hold the publisher callback ---
-var mqttPublish PublishFunc // Renamed from mqttPublisher to avoid confusion
+var mqttPublish PublishFunc
 
 // --- Function to set the publisher callback ---
 func SetMQTTPublisher(p PublishFunc) {
-	log.Println("Bridge: Setting MQTT Publisher Callback...")
+	log.Println("Bridge: Setting MQTT Publisher Callback (for CAN->MQTT)...")
 	mqttPublish = p
 	if mqttPublish == nil {
-		log.Println("Warning: MQTT Publisher callback set to nil in bridge.")
+		log.Println("Warning: MQTT Publisher callback (for CAN->MQTT) set to nil in bridge.")
 	}
 }
 
@@ -38,88 +39,152 @@ type ConfigPayload struct {
 
 // --- Message Handlers ---
 
-// handleCAN processes incoming CAN frames: converts and publishes to MQTT.
+// handleCAN processes incoming CAN frames concurrently.
 // Called internally by handleCANFrame in canbushandling.go.
 func handleCAN(cf can.Frame) {
-	if debugMode {
-		log.Printf("ReceiveHandler: Processing CAN Frame: ID=%X Len=%d Data=%X", cf.ID, cf.Length, cf.Data[:cf.Length])
-	}
-	// Convert CAN frame to MQTT topic/payload
-	mqttMsg := convert2MQTT(int(cf.ID), int(cf.Length), cf.Data) // Use the conversion function
+	receivedTime := time.Now() // Record time when frame processing starts
 
-	// Publish to MQTT if allowed by direction mode
-	if directionMode != 2 { // Allow if bidirectional (0) or can2mqtt only (1)
-		if mqttPublish == nil {
-			log.Println("Error: Cannot publish CAN->MQTT message, MQTT Publisher callback not set.")
-			return
+	// *** Launch processing in a goroutine ***
+	go func(frame can.Frame, rTime time.Time) {
+		processingStartTime := time.Now()
+		frameID := frame.ID & 0x1FFFFFFF // Mask ID for logging/lookup
+
+		// Use the configured time sleep value, if any (apply per-message if needed)
+		if timeSleepValue > 0 {
+			time.Sleep(timeSleepValue)
 		}
-		err := mqttPublish(mqttMsg.Topic, mqttMsg.Payload) // Use the callback
-		if err != nil {
-			log.Printf("Error publishing CAN->MQTT (Topic: %s): %v", mqttMsg.Topic, err)
+
+		if debugMode {
+			log.Printf("ReceiveHandler-Go: Processing CAN Frame: ID=%X Len=%d Data=%X", frameID, frame.Length, frame.Data[:frame.Length])
+		}
+
+		// Convert CAN frame to MQTT topic/payload
+		mqttMsg, convErr := convert2MQTT(int(frameID), int(frame.Length), frame.Data)
+		if convErr != nil {
+			if debugMode {
+				log.Printf("ReceiveHandler-Go: Skipping MQTT publish for CAN ID %X due to conversion error: %v", frameID, convErr)
+			}
+			// Log processing time even if conversion failed
+			log.Printf("[Perf] CAN->MQTT (ID: %X) processing time (Convert Error): %v", frameID, time.Since(processingStartTime))
+			return // End goroutine
+		}
+
+		// Publish to MQTT (non-retained) if allowed by direction mode
+		publishStartTime := time.Now()
+		publishErr := fmt.Errorf("publish skipped due to direction mode") // Default error if skipped
+
+		if directionMode != 2 { // Allow if bidirectional (0) or can2mqtt only (1)
+			if mqttPublish == nil {
+				publishErr = fmt.Errorf("cannot publish CAN->MQTT, MQTT Publisher callback not set")
+				log.Println("Error:", publishErr)
+			} else {
+				// Use the standard (non-retained) Publish function
+				publishErr = mqttPublish(mqttMsg.Topic, mqttMsg.Payload) // mqttPublish returns immediate error (nil usually)
+				if publishErr != nil {
+					// Error handled async in publisher, log here if needed
+					log.Printf("Error initiating CAN->MQTT publish (Topic: %s): %v", mqttMsg.Topic, publishErr)
+				} else {
+					if debugMode {
+						logPayload := mqttMsg.Payload
+						if len(logPayload) > 100 {
+							logPayload = logPayload[:100] + "..."
+						}
+						log.Printf("ReceiveHandler-Go: Initiated publish CAN->MQTT: Topic=%s Payload=%s", mqttMsg.Topic, logPayload)
+					}
+				}
+			}
 		} else {
 			if debugMode {
-				log.Printf("ReceiveHandler: Published CAN->MQTT: Topic=%s Payload=%s", mqttMsg.Topic, mqttMsg.Payload)
+				log.Printf("ReceiveHandler-Go: dirMode=2 (mqtt2can only), MQTT message not published for CAN ID %X", frameID)
 			}
-			// Optional: Print summary to console
-			// fmt.Printf("ID: %X Len: %d Data: %X -> Topic: \"%s\" Message: \"%s\"\n", cf.ID, cf.Length, cf.Data[:cf.Length], mqttMsg.Topic, mqttMsg.Payload)
 		}
-	} else {
-		if debugMode {
-			log.Printf("ReceiveHandler: dirMode=2 (mqtt2can only), MQTT message not published for CAN ID %X", cf.ID)
+		publishDuration := time.Since(publishStartTime)
+		totalProcessingDuration := time.Since(processingStartTime)
+		totalDurationSinceReception := time.Since(rTime)
+
+		// Log performance timing
+		if publishErr != nil && publishErr.Error() != "publish skipped due to direction mode" {
+			log.Printf("[Perf] CAN->MQTT (ID: %X): Convert+Publish Error (%v) | Times: Convert=%v, PublishAttempt=%v, Total=%v (Since Recv: %v)",
+				frameID, publishErr, publishStartTime.Sub(processingStartTime), publishDuration, totalProcessingDuration, totalDurationSinceReception)
+		} else {
+			log.Printf("[Perf] CAN->MQTT (ID: %X): Convert+Publish OK | Times: Convert=%v, Publish=%v, Total=%v (Since Recv: %v)",
+				frameID, publishStartTime.Sub(processingStartTime), publishDuration, totalProcessingDuration, totalDurationSinceReception)
 		}
-	}
+
+	}(cf, receivedTime) // Pass frame by value to goroutine
 }
 
-// HandleMessage handles standard incoming MQTT messages (non-config).
-// It implements the mqtt.MessageHandler interface implicitly and is called by the MQTT client's default handler.
+// HandleMessage handles standard incoming MQTT messages concurrently.
+// Called by the MQTT client's default handler.
 func HandleMessage(_ MQTT.Client, msg MQTT.Message) {
+	// This function is now called within a goroutine launched by mqtt_client's defaultHandler.
+	// We can perform the work directly here.
+	processingStartTime := time.Now() // Time when bridge handling starts
 	topic := msg.Topic()
-	payload := string(msg.Payload())
+	// Payload is already a copy made by the defaultHandler
+	payload := msg.Payload()
 
 	if debugMode {
-		log.Printf("ReceiveHandler: Processing MQTT Message: Topic=%s Payload=%s", topic, payload)
+		logPayloadStr := string(payload)
+		if len(logPayloadStr) > 100 {
+			logPayloadStr = logPayloadStr[:100] + "..."
+		}
+		log.Printf("ReceiveHandler-Go: Processing MQTT Message: Topic=%s Payload=%s", topic, logPayloadStr)
 	}
-
-	// Handle specific non-conversion translator commands if needed
-	// HandleTranslator(topic, payload) // Call this if needed based on topic prefix etc.
 
 	// Convert MQTT message to CAN frame
-	cf := convert2CAN(topic, payload)
-
-	// Publish CAN frame if conversion was successful (check for default/error frame?)
-	// and if allowed by direction mode
-	if cf.ID == 0xFFFFFFFF { // Check if conversion failed (using the error ID from convert2CAN)
+	cf, convErr := convert2CAN(topic, payload) // Pass payload as []byte
+	if convErr != nil {
 		if debugMode {
-			log.Printf("ReceiveHandler: Skipping CAN publish for topic %s due to conversion error.", topic)
+			log.Printf("ReceiveHandler-Go: Skipping CAN publish for topic %s due to conversion error: %v", topic, convErr)
 		}
-		return
+		log.Printf("[Perf] MQTT->CAN (Topic: %s) processing time (Convert Error): %v", topic, time.Since(processingStartTime))
+		return // End processing for this message
 	}
 
+	// Publish CAN frame if conversion was successful and allowed by direction mode
+	publishStartTime := time.Now()
+	publishErr := fmt.Errorf("publish skipped due to direction mode") // Default error if skipped
+
 	if directionMode != 1 { // Allow if bidirectional (0) or mqtt2can only (2)
-		canPublish(cf) // Publish to CAN bus (function defined in canbushandling.go)
-		if debugMode {
-			log.Printf(
-				`ReceiveHandler: Published MQTT->CAN: ID=%X Len=%d Data=%X <- Topic: "%s" Message:%s \n`,
-				cf.ID,
-				cf.Length,
-				cf.Data[:cf.Length],
-				msg.Topic(),
-				msg.Payload(),
-			)
+		publishErr = canPublish(cf) // canPublish now returns error
+		if publishErr != nil {
+			log.Printf("ReceiveHandler-Go: Error publishing MQTT->CAN: %v", publishErr)
+		} else {
+			if debugMode {
+				log.Printf(
+					`ReceiveHandler-Go: Published MQTT->CAN: ID=%X Len=%d Data=%X <- Topic: "%s"`,
+					cf.ID,
+					cf.Length,
+					cf.Data[:cf.Length],
+					topic,
+				)
+			}
 		}
-		// Optional: Print summary to console
-		// fmt.Printf("ID: %X Len: %d Data: %X <- Topic: \"%s\" Message: \"%s\"\n", cf.ID, cf.Length, cf.Data[:cf.Length], topic, payload)
 	} else {
 		if debugMode {
-			log.Printf("ReceiveHandler: dirMode=1 (can2mqtt only), CAN frame not published for MQTT topic %s", topic)
+			log.Printf("ReceiveHandler-Go: dirMode=1 (can2mqtt only), CAN frame not published for MQTT topic %s", topic)
 		}
+	}
+	publishDuration := time.Since(publishStartTime)
+	totalProcessingDuration := time.Since(processingStartTime)
+	// Note: We don't have the original MQTT reception time here easily unless passed explicitly.
+
+	// Log performance timing
+	if publishErr != nil && publishErr.Error() != "publish skipped due to direction mode" {
+		log.Printf("[Perf] MQTT->CAN (Topic: %s): Convert+Publish Error (%v) | Times: Convert=%v, PublishAttempt=%v, Total=%v",
+			topic, publishErr, publishStartTime.Sub(processingStartTime), publishDuration, totalProcessingDuration)
+	} else {
+		log.Printf("[Perf] MQTT->CAN (Topic: %s): Convert+Publish OK | Times: Convert=%v, Publish=%v, Total=%v",
+			topic, publishStartTime.Sub(processingStartTime), publishDuration, totalProcessingDuration)
 	}
 }
 
-// ApplyConfigUpdate handles incoming configuration messages from MQTT (translater/run topic).
-// This function matches the mqtt.ConfigHandlerFunc type.
+// ApplyConfigUpdate handles incoming configuration messages from MQTT ("translater/run" topic).
+// This is called directly by the MQTT client's defaultHandler (in its goroutine).
 func ApplyConfigUpdate(payload string) {
-	log.Printf("[ApplyConfigUpdate] Received config update payload: %s", payload)
+	log.Printf("[ApplyConfigUpdate@Bridge] Received config update payload: %s", payload)
+	startTime := time.Now()
 
 	var cfgPayload ConfigPayload
 	err := json.Unmarshal([]byte(payload), &cfgPayload)
@@ -128,8 +193,11 @@ func ApplyConfigUpdate(payload string) {
 		return // Stop processing if JSON is invalid
 	}
 
-	// Apply changes based on fields present in the JSON payload
+	// Apply changes by calling setters. The setters handle logging and potential reloads.
 	log.Println("Applying configuration changes...")
+	// **Consider protecting config changes with a mutex if reload takes time
+	// or if conversions are happening concurrently.**
+	// For now, assuming setters are quick or ReloadConfig handles locking.
 	if cfgPayload.Debug != nil {
 		SetDbg(*cfgPayload.Debug)
 	}
@@ -137,23 +205,13 @@ func ApplyConfigUpdate(payload string) {
 		SetConfDirMode(strconv.Itoa(*cfgPayload.Direction))
 	}
 	if cfgPayload.File != nil {
-		SetC2mf(*cfgPayload.File) // This setter now handles path expansion and triggers ReloadConfig
+		SetC2mf(*cfgPayload.File) // This setter triggers ReloadConfig
 	}
 	if cfgPayload.Username != nil {
 		SetUserName(*cfgPayload.Username)
 	}
 	if cfgPayload.SleepTime != nil {
-		// Convert int64 microseconds to string for the setter
 		SetTimeSleepValue(strconv.FormatInt(*cfgPayload.SleepTime, 10))
 	}
-	log.Println("[ApplyConfigUpdate] Finished applying configuration changes.")
-}
-
-// HandleTranslator can be called if specific "translator/..." topics need handling
-// that isn't standard conversion or config update.
-func HandleTranslator(topic string, payload string) {
-	if strings.HasPrefix(topic, "translater/command/") { // Example check
-		log.Printf("Handling translator command: Topic=%s Payload=%s", topic, payload)
-		// Add logic specific to translator commands here
-	}
+	log.Printf("[ApplyConfigUpdate@Bridge] Finished applying configuration changes in %v.", time.Since(startTime))
 }
