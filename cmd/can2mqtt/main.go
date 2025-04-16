@@ -50,7 +50,7 @@ func main() {
 	// 4. Wire up handlers and publishers using callbacks
 	log.Println("Wiring up MQTT handlers and publisher...")
 
-	bridge.SetMQTTPublisher(mqttClient.Publish)
+	bridge.SetMQTTPublisher(mqttClient.PublishRetained)
 
 	myMqtt.SetBridgeMessageHandler(bridgeMsgHandler{}) // Pass an instance
 

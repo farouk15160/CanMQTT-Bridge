@@ -10,10 +10,6 @@ import (
 	// NO direct import of internal/bridge
 )
 
-// --- Callback Types ---
-type PublishFunc func(topic, payload string) error
-type ConfigHandlerFunc func(payload string)
-
 // --- Variables to hold handlers/callbacks ---
 var (
 	bridgeMessageHandler MessageHandler    // Interface for standard messages
@@ -34,16 +30,6 @@ func SetConfigHandler(h ConfigHandlerFunc) {
 	if bridgeConfigHandler == nil {
 		log.Println("Warning: Config Handler set to nil in MQTT client.")
 	}
-}
-
-// Client struct definition
-type Client struct {
-	pahoClient MQTT.Client
-	debug      bool
-	brokerURL  string // Store broker URL for reconnects
-	clientID   string
-	user       string
-	pw         string
 }
 
 // NewClientAndConnect initializes and connects the MQTT client.
@@ -137,24 +123,24 @@ func (c *Client) connect() error {
 func (c *Client) defaultHandler(client MQTT.Client, msg MQTT.Message) {
 	topic := msg.Topic()
 	payload := string(msg.Payload())
-	isConfigTopic := (topic == "translater/run")
 
 	if c.debug {
-		log.Printf("[MQTT Handler] Received: Topic=%s | IsConfig=%t | Payload=%s", topic, isConfigTopic, payload)
+		log.Printf("[MQTT Handler] Received: Topic=%s | Payload=%s", topic, payload)
 	}
 
-	if isConfigTopic {
-		if bridgeConfigHandler != nil {
-			bridgeConfigHandler(payload) // Call the config handler func
-		} else {
-			log.Println("Error: Config message received but no Config Handler set.")
-		}
+	if topic == "translater/run" {
+		handleConfigUpdate(payload)
+		return
+	}
+	if topic == "translater/process" {
+		handleTranslatorStatus(topic, payload, c)
+		return
+	}
+
+	if bridgeMessageHandler != nil {
+		bridgeMessageHandler.HandleMessage(client, msg)
 	} else {
-		if bridgeMessageHandler != nil {
-			bridgeMessageHandler.HandleMessage(client, msg) // Call the message handler interface method
-		} else {
-			log.Printf("Error: Cannot handle message for topic '%s', Bridge Message Handler not set.", topic)
-		}
+		log.Printf("Error: Cannot handle message for topic '%s', Bridge Message Handler not set.", topic)
 	}
 }
 
@@ -174,18 +160,18 @@ func (c *Client) onConnectHandler(client MQTT.Client) {
 }
 
 // Publish sends a message.
-func (c *Client) Publish(topic, payload string) error {
-	if !c.pahoClient.IsConnected() {
-		return fmt.Errorf("MQTT client not connected, cannot publish to %s", topic)
-	}
-	if c.debug {
-		log.Printf("MQTT Publish -> Topic=%s | Payload=%s", topic, payload)
-	}
-	// token := c.pahoClient.Publish(topic, 0, false, payload)
-	// token.Wait() // Optionally wait, but can block
-	// Check error async or let Paho handle queueing? For now, don't wait.
-	return nil // Assume success if queuing works, Paho handles actual send
-}
+// func (c *Client) Publish(topic, payload string) error {
+// 	if !c.pahoClient.IsConnected() {
+// 		return fmt.Errorf("MQTT client not connected, cannot publish to %s", topic)
+// 	}
+// 	if c.debug {
+// 		log.Printf("MQTT Publish -> Topic=%s | Payload=%s", topic, payload)
+// 	}
+// 	// token := c.pahoClient.Publish(topic, 0, false, payload)
+// 	// token.Wait() // Optionally wait, but can block
+// 	// Check error async or let Paho handle queueing? For now, don't wait.
+// 	return nil // Assume success if queuing works, Paho handles actual send
+// }
 
 // PublishRetained sends a message with the retained flag.
 func (c *Client) PublishRetained(topic, payload string) error {

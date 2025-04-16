@@ -34,8 +34,9 @@ var (
 	csi          []uint32 // subscribed CAN IDs slice from canbushandling.go
 
 	// Callbacks/Interfaces
-	mqttPublisher Publisher          // Interface for publishing MQTT messages
-	mqttSubscribe func(string) error // Function to subscribe to MQTT topics (passed during Start)
+	mqttPublisher     Publisher          // Interface for publishing MQTT messages
+	mqttSubscribe     func(string) error // Function to subscribe to MQTT topics (passed during Start)
+	mqttClientUpdater func(string)
 )
 
 // --- Initialization and Setup ---
@@ -155,6 +156,15 @@ func SetConfDirMode(s string) {
 func SetUserName(s string) {
 	mqttUsername = s
 	log.Printf("Bridge Setting: MQTT Username set to: %s", mqttUsername)
+	if mqttClientUpdater != nil {
+		mqttClientUpdater(mqttUsername) // Call the updater
+	} else {
+		log.Println("Warning: MQTT client updater not set. Username might not be applied.")
+	}
+}
+
+func SetMqttClientUpdater(updater func(string)) {
+	mqttClientUpdater = updater
 }
 
 // --- Main Bridge Logic ---

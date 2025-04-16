@@ -98,7 +98,14 @@ func HandleMessage(_ MQTT.Client, msg MQTT.Message) {
 	if directionMode != 1 { // Allow if bidirectional (0) or mqtt2can only (2)
 		canPublish(cf) // Publish to CAN bus (function defined in canbushandling.go)
 		if debugMode {
-			log.Printf("ReceiveHandler: Published MQTT->CAN: ID=%X Len=%d Data=%X", cf.ID, cf.Length, cf.Data[:cf.Length])
+			log.Printf(
+				`ReceiveHandler: Published MQTT->CAN: ID=%X Len=%d Data=%X <- Topic: "%s" Message:%s \n`,
+				cf.ID,
+				cf.Length,
+				cf.Data[:cf.Length],
+				msg.Topic(),
+				msg.Payload(),
+			)
 		}
 		// Optional: Print summary to console
 		// fmt.Printf("ID: %X Len: %d Data: %X <- Topic: \"%s\" Message: \"%s\"\n", cf.ID, cf.Length, cf.Data[:cf.Length], topic, payload)

@@ -717,6 +717,67 @@
                         31
                     ],
                     "factor": 1.0
+                },
+                {
+                    "key": "username",
+                    "type": "string",
+                    "place": [
+                        31,
+                        63
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "translater/run",
+            "canid": "0xE5",
+            "length": 0,
+            "payload": [
+                {
+                    "key": "debug",
+                    "type": "bool",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "direction",
+                    "type": "uint8_t",
+                    "place": [
+                        1,
+                        1
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "file",
+                    "type": "string",
+                    "place": [
+                        2,
+                        31
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "username",
+                    "type": "string",
+                    "place": [
+                        32,
+                        63
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "sleepTime",
+                    "type": "int64_t",
+                    "place": [
+                        64,
+                        71
+                    ],
+                    "factor": 1.0
                 }
             ]
         }
@@ -1824,6 +1885,110 @@
                 {
                     "key": "unixtime",
                     "type": "unixtime",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "translater/run",
+            "canid": "0xE5",
+            "length": 0,
+            "payload": [
+                {
+                    "key": "debug",
+                    "type": "bool",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "direction",
+                    "type": "uint8_t",
+                    "place": [
+                        1,
+                        1
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "file",
+                    "type": "string",
+                    "place": [
+                        2,
+                        31
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "username",
+                    "type": "string",
+                    "place": [
+                        32,
+                        63
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "sleepTime",
+                    "type": "int64_t",
+                    "place": [
+                        64,
+                        71
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "translater/process",
+            "canid": "0xE6",
+            "length": 0,
+            "payload": [
+                {
+                    "key": "ram_usage",
+                    "type": "uint64",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "buffer_usage",
+                    "type": "int",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "cpu_usage_cores",
+                    "type": "[]float64",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "temperature",
+                    "type": "float32",
+                    "place": [
+                        0,
+                        0
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "uptime",
+                    "type": "uint64",
                     "place": [
                         0,
                         0
