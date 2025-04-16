@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	// Import config package for struct definitions
 	"github.com/brutella/can"
 	"github.com/farouk15160/Translater-code-new/internal/config"
 )
@@ -24,8 +23,8 @@ var (
 	debugMode      bool          = false
 	canInterface   string        = "can0"
 	mqttBrokerURL  string        = "tcp://localhost:1883" // Informational, connection handled by MQTT client
-	configFilePath string                                 // Set initially, potentially changed by MQTT
-	directionMode  int           = 0                      // 0=bidir, 1=c2m, 2=m2c
+	configFilePath string
+	directionMode  int = 0 // 0=bidir, 1=c2m, 2=m2c
 
 	// Runtime state
 	loadedConfig *config.Config        // Holds the parsed config from the JSON file
@@ -67,7 +66,6 @@ func SetConfig(cfg *config.Config) {
 	loadedConfig = cfg
 }
 
-// --- Getters for settings (used by other packages if needed) ---
 func GetConfigFilePath() string {
 	return configFilePath
 }

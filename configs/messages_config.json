@@ -701,7 +701,16 @@
             "length": 32,
             "payload": [
                 {
-                    "key": "welcomeMessage",
+                    "key": "ip_address",
+                    "type": "string",
+                    "place": [
+                        0,
+                        31
+                    ],
+                    "factor": 1.0
+                },
+                {
+                    "key": "message",
                     "type": "string",
                     "place": [
                         0,

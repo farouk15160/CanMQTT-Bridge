@@ -8,15 +8,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	MQTT "github.com/eclipse/paho.mqtt.golang" // Import paho mqtt library
-	"github.com/farouk15160/Translater-code-new/internal/bridge"
-	"github.com/farouk15160/Translater-code-new/internal/config" // Import config package
+	MQTT "github.com/eclipse/paho.mqtt.golang"
+	bridge "github.com/farouk15160/Translater-code-new/internal/bridge"
+	config "github.com/farouk15160/Translater-code-new/internal/config"
 	myMqtt "github.com/farouk15160/Translater-code-new/internal/mqtt"
 )
 
 func main() {
-	flag.Parse() // Parse command-line flags
-
+	flag.Parse() // Parse command-line Args
 	log.Println("--- Starting CAN-MQTT Translator ---")
 
 	// 1. Apply settings from flags/defaults to the bridge package
