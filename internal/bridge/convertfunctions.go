@@ -8,7 +8,7 @@ import (
 	"math"
 	"strconv" // Keep for CAN ID parsing during map creation
 	"strings" // Keep for CAN ID parsing
-	"time"
+	"time"    // Keep for timestamping
 
 	"github.com/brutella/can"
 	"github.com/farouk15160/Translater-code-new/internal/config" // Keep for types
@@ -20,9 +20,8 @@ type mqttResponse struct {
 	Payload string
 }
 
-// getPayloadConv is NO LONGER USED. Lookups happen directly using maps.
-
 // Convert2MQTTUsingMap converts a CAN frame using the preprocessed CanRuleMap.
+// It adds a 'unixtime' field with the current Unix timestamp in NANOSECONDS to the MQTT payload.
 // Returns mqttResponse, the matching *config.Conversion rule, and error.
 // --- EXPORTED ---
 func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse, *config.Conversion, error) {
@@ -34,14 +33,10 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 	ConfigLock.RUnlock()               // Use exported name - Release lock
 
 	if !exists {
-		// Don't log error here, let caller decide. Return specific error?
-		// For now, return nil rule and specific error message
 		return res, nil, fmt.Errorf("no matching conversion rule found")
 	}
 
-	// We have the rule, proceed with conversion
 	res.Topic = convRule.Topic
-
 	jsonData := make(map[string]interface{})
 	var processingError error = nil
 
@@ -49,27 +44,27 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 		var value interface{}
 		var fieldErr error = nil
 
+		if field.Type == "unixtime" {
+			continue
+		}
+
 		startIndex := field.Place[0]
 		endIndex := field.Place[1]
 
-		// Basic validation (could be done during config loading)
 		if startIndex < 0 || startIndex >= 8 || endIndex <= startIndex || endIndex > 8 {
-			if currentDebugMode { // Only log validation warnings if debugging
+			if currentDebugMode {
 				log.Printf("Convert2MQTT Warning: Invalid place %v for field '%s' in CAN ID %X rule. Skipping field.", field.Place, field.Key, id)
 			}
 			continue
 		}
-		if startIndex >= length { // Check if start index is within actual payload length
-			// This might be a valid scenario (optional fields at the end)
+		if startIndex >= length {
 			continue
 		}
-		// Ensure endIndex does not exceed actual payload length
 		if endIndex > length {
-			endIndex = length // Adjust endIndex to the actual payload length
+			endIndex = length
 		}
-		// Check if adjusted range is still valid
 		if startIndex >= endIndex {
-			if currentDebugMode { // Only log validation warnings if debugging
+			if currentDebugMode {
 				log.Printf("Convert2MQTT Warning: Invalid adjusted place [%d:%d) for field '%s' (CAN ID %X) with payload length %d. Skipping field.", startIndex, endIndex, field.Key, id, length)
 			}
 			continue
@@ -80,8 +75,6 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 		switch field.Type {
 		case "error":
 			value = "error"
-		case "unixtime": // Deprecated: Ignore this field type from config
-			continue // Skip to next field
 		case "byte", "string":
 			value = string(subSlice)
 		case "int8_t":
@@ -131,7 +124,7 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 		}
 
 		if fieldErr != nil {
-			log.Printf("Convert2MQTT Warning: Error processing field '%s' in CAN ID %X: %v. Skipping.", field.Key, id, fieldErr) // Log processing errors regardless of debug mode
+			log.Printf("Convert2MQTT Warning: Error processing field '%s' in CAN ID %X: %v. Skipping.", field.Key, id, fieldErr)
 			if processingError == nil {
 				processingError = fieldErr
 			}
@@ -140,11 +133,11 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 		jsonData[field.Key] = value
 	} // End field loop
 
-	// Add/Overwrite timestamp
-	jsonData["timestamp"] = float64(time.Now().UnixNano()) / 1e9
+	// **** MODIFICATION START: Add/Overwrite unixtime with NANOSECONDS ****
+	// Add the current Unix timestamp in nanoseconds since epoch
+	jsonData["unixtime"] = time.Now().UnixNano() // Changed from Unix() to UnixNano()
+	// **** MODIFICATION END ****
 
-	// Marshal final map
-	// Use standard json.Marshal, switch to faster lib only if profiling shows it's a bottleneck
 	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
 		log.Printf("Convert2MQTT Error: Failed to marshal final JSON for CAN ID %X: %v", id, err)
@@ -157,14 +150,11 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 	}
 
 	res.Payload = string(jsonBytes)
-
-	// Debug logging moved to caller (processCANFrame)
-
-	// Return success or first field processing error
 	return res, convRule, processingError
 }
 
 // Convert2CANUsingMap converts an MQTT message using the preprocessed MqttRuleMap.
+// It ignores the 'unixtime' field in the incoming MQTT payload.
 // Returns can.Frame, the matching *config.Conversion rule, and error.
 // --- EXPORTED ---
 func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conversion, error) {
@@ -179,37 +169,34 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 		return frame, nil, fmt.Errorf("no matching conversion rule found")
 	}
 
-	// Unmarshal JSON
 	var data map[string]interface{}
-	// Use standard json.Unmarshal, switch to faster lib only if needed
 	err := json.Unmarshal(payload, &data)
 	if err != nil {
 		err = fmt.Errorf("failed to unmarshal JSON payload for topic %s: %w", topic, err)
-		// Log locally or let caller handle? Log here for now.
 		log.Printf("Convert2CAN Error: %v", err)
 		return frame, convRule, err
 	}
 
 	var buffer [8]uint8
-	var fieldProcessingError error = nil // Track first error during field processing
+	var fieldProcessingError error = nil
 
 	for _, field := range convRule.Payload {
 		value, keyExists := data[field.Key]
 		if !keyExists {
-			continue // Skip if key missing
+			continue
 		}
 
-		// Skip timestamp, unixtime types when converting MQTT->CAN
-		if field.Key == "timestamp" || field.Type == "unixtime" {
+		// Skip timestamp, unixtime types/keys when converting MQTT->CAN
+		// (No change needed here from previous version)
+		if field.Key == "timestamp" || field.Type == "unixtime" || field.Key == "unixtime" {
 			continue
 		}
 
 		startIndex := field.Place[0]
 		endIndex := field.Place[1]
 
-		// Basic validation (could be done during config loading)
 		if startIndex < 0 || startIndex >= 8 || endIndex <= startIndex || endIndex > 8 {
-			if currentDebugMode { // Only log validation warnings if debugging
+			if currentDebugMode {
 				log.Printf("Convert2CAN Warning: Invalid place %v for field '%s' in topic %s rule. Skipping field.", field.Place, field.Key, topic)
 			}
 			continue
@@ -231,7 +218,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 			}
 		default: // Handle numeric types
 			numVal, ok := value.(float64)
-			if !ok { // Try converting from integer types if float64 fails
+			if !ok {
 				switch v := value.(type) {
 				case int:
 					numVal = float64(v)
@@ -245,7 +232,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 				case int32:
 					numVal = float64(v)
 					ok = true
-				case int64:
+				case int64: // Ensure int64 is handled correctly (like from unixtime nanoseconds)
 					numVal = float64(v)
 					ok = true
 				case uint:
@@ -263,7 +250,6 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 				case uint64:
 					numVal = float64(v)
 					ok = true
-					// Add other potential numeric types if necessary
 				}
 			}
 			if !ok {
@@ -279,7 +265,6 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 				break
 			}
 
-			// Range and type checks before conversion
 			var targetVal interface{}
 			switch field.Type {
 			case "int8_t":
@@ -319,16 +304,14 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 				}
 				targetVal = uint32(valToConvert)
 			case "float": // Assume float32
-				// Check range if necessary, though less common for float32
 				targetVal = float32(valToConvert)
 			default:
 				convErr = fmt.Errorf("unknown numeric field type '%s' for key '%s'", field.Type, field.Key)
 			}
 			if convErr != nil {
 				break
-			} // Break outer switch if range/type error
+			}
 
-			// Place value into buffer
 			switch v := targetVal.(type) {
 			case int8:
 				if endIndex == startIndex+1 {
@@ -372,31 +355,26 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 				} else {
 					convErr = fmt.Errorf("place %v invalid for float32", field.Place)
 				}
-				// No default needed here as type checked above
 			}
-		} // End type switch
+		}
 
 		if convErr != nil {
-			log.Printf("Convert2CAN Warning: Conversion error for key '%s' in topic %s: %v. Skipping field.", field.Key, topic, convErr) // Log conversion errors regardless of debug mode
+			log.Printf("Convert2CAN Warning: Conversion error for key '%s' in topic %s: %v. Skipping field.", field.Key, topic, convErr)
 			if fieldProcessingError == nil {
 				fieldProcessingError = convErr
-			} // Store first error
+			}
 		}
 	} // End field loop
 
-	// Parse CAN ID (already validated during config load/preprocess)
 	canidStr := strings.TrimPrefix(convRule.CanID, "0x")
-	canidNr, _ := strconv.ParseUint(canidStr, 16, 32) // Error ignored, should be pre-validated
+	canidNr, _ := strconv.ParseUint(canidStr, 16, 32)
 
 	frame.ID = uint32(canidNr)
 	frame.Length = uint8(convRule.Length)
 	if frame.Length > 8 {
 		frame.Length = 8
-	} // Clamp length
+	}
 	frame.Data = buffer
 
-	// Debug logging moved to caller (processMQTTMessage)
-
-	// Return successful frame or the first field processing error
 	return frame, convRule, fieldProcessingError
 }
