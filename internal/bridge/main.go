@@ -23,7 +23,8 @@ var (
 	runInThread    bool          = false
 	debugMode      bool          = false
 	canInterface   string        = "can0"
-	mqttBrokerURL  string        = "tcp://localhost:1883"
+	ip_adress      string        = "192.168.178.5"
+	mqttBrokerURL  string        = "mqtt://" + ip_adress + ":1883"
 	configFilePath string
 	directionMode  int = 0
 	numWorkers     int = runtime.NumCPU() // Number of worker goroutines per pool
@@ -138,6 +139,13 @@ func SetDbg(v bool) {
 	debugMode = v
 	ConfigLock.Unlock() // Use exported name
 	log.Printf("Bridge Setting: Debug Mode set to: %t", debugMode)
+}
+
+func SetIp(v string) {
+	ConfigLock.Lock() // Use exported name
+	ip_adress = v
+	ConfigLock.Unlock() // Use exported name
+	log.Printf("Broker Ip: %s", mqttBrokerURL)
 }
 
 func SetCi(c string) {
