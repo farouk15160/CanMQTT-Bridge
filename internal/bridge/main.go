@@ -20,6 +20,7 @@ var (
 	// Settings
 	mqttUsername   string        = "farouk"
 	timeSleepValue time.Duration = 0 * time.Microsecond
+	currentBitSize int           = 8
 	runInThread    bool          = false
 	debugMode      bool          = false
 	canInterface   string        = "can0"
@@ -63,6 +64,50 @@ type MqttWorkItem struct {
 
 func init() {
 	configFilePath = getDefaultConfigPath("~/go-exe/testconfig.json")
+}
+
+func SetBitSize(bits int) {
+	ConfigLock.Lock()         // Use exported name
+	defer ConfigLock.Unlock() // Use exported name
+
+	var bytes int
+	switch bits {
+	case 8:
+		bytes = 1
+	case 16:
+		bytes = 2
+	case 32:
+		bytes = 4
+	case 64:
+		bytes = 8
+	case 128:
+		bytes = 16
+	case 256:
+		bytes = 32
+	// Add cases for 24, 40, 48, 56 if needed, mapping to bytes 3, 5, 6, 7
+	default:
+		log.Printf("Bridge Warning: Invalid bit_size %d received. Must be 8, 16, 32, 64, 128, 256. Using previous value %d bytes.", bits, currentBitSize)
+		return // Keep the current value if input is invalid
+	}
+
+	// Clamp to valid DLC range (0-8 for standard CAN, though 0 is unusual for data)
+	// We'll clamp 1-8 here as 0 bytes is unlikely intended via this setting.
+	if bytes < 1 {
+		bytes = 1
+	} else if bytes > 8 {
+		log.Printf("Bridge Warning: Requested bit_size %d results in %d bytes, exceeding standard CAN limit. Clamping to 8 bytes.", bits, bytes)
+		bytes = 8
+	}
+
+	if bytes != currentBitSize {
+		log.Printf("Bridge Setting: Current Bit Size (DLC) set to: %d bytes (from %d bits)", bytes, bits)
+		currentBitSize = bytes
+	}
+}
+func GetCurrentBitSize() int {
+	ConfigLock.RLock()
+	defer ConfigLock.RUnlock()
+	return currentBitSize
 }
 
 func getDefaultConfigPath(relativePath string) string {

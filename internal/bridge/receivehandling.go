@@ -20,6 +20,7 @@ type ConfigPayload struct {
 	File      *string `json:"file"`
 	Username  *string `json:"username"`
 	SleepTime *int64  `json:"sleepTime"` // Microseconds
+	BitSize   *int    `json:"bit_size"`  // ADDED
 }
 
 // --- Callback Type for Publishing ---
@@ -54,7 +55,6 @@ func ApplyConfigUpdate(payload string) {
 	}
 
 	// Apply changes by calling setters from main.go.
-	// Setters handle locking and reloads where necessary.
 	log.Println("Applying configuration changes...")
 	if cfgPayload.Debug != nil {
 		SetDbg(*cfgPayload.Debug)
@@ -71,6 +71,11 @@ func ApplyConfigUpdate(payload string) {
 	if cfgPayload.SleepTime != nil {
 		SetTimeSleepValue(strconv.FormatInt(*cfgPayload.SleepTime, 10))
 	}
+	// --- ADDED: Handle BitSize ---
+	if cfgPayload.BitSize != nil {
+		SetBitSize(*cfgPayload.BitSize) // Call the new setter
+	}
+	// --- END ADDED ---
 	log.Printf("[ApplyConfigUpdate@Bridge] Finished applying configuration changes in %v.", time.Since(startTime))
 }
 

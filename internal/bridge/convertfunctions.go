@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log" // Keep log import
 	"math"
 	"strconv" // Keep for CAN ID parsing during map creation
 	"strings" // Keep for CAN ID parsing
@@ -133,10 +133,8 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 		jsonData[field.Key] = value
 	} // End field loop
 
-	// **** MODIFICATION START: Add/Overwrite unixtime with NANOSECONDS ****
 	// Add the current Unix timestamp in nanoseconds since epoch
 	jsonData["unixtime"] = time.Now().UnixNano() // Changed from Unix() to UnixNano()
-	// **** MODIFICATION END ****
 
 	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
@@ -150,19 +148,32 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 	}
 
 	res.Payload = string(jsonBytes)
+
+	// --- ADDED: Debug log for final MQTT payload ---
+	if currentDebugMode {
+		// Truncate payload for logging if it's too long
+		logPayload := res.Payload
+		if len(logPayload) > 200 { // Limit log length
+			logPayload = logPayload[:200] + "..."
+		}
+		log.Printf("[Debug CAN->MQTT Payload] Sending to Topic '%s': %s", res.Topic, logPayload)
+	}
+	// --- END ADDED ---
+
 	return res, convRule, processingError
 }
 
 // Convert2CANUsingMap converts an MQTT message using the preprocessed MqttRuleMap.
-// It ignores the 'unixtime' field in the incoming MQTT payload.
+// Sets frame.Length based on the globally configured bit size (clamped to 8).
 // Returns can.Frame, the matching *config.Conversion rule, and error.
 // --- EXPORTED ---
 func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conversion, error) {
-	frame := can.Frame{}
+	frame := can.Frame{} // Uses brutella/can Frame with Data [8]uint8
 
 	ConfigLock.RLock()                     // Use exported name - Read lock for accessing the map
 	convRule, exists := MqttRuleMap[topic] // Use exported name
 	currentDebugMode := debugMode          // Read debug flag under lock
+	configuredBytes := currentBitSize      // Read configured size (already clamped 1-8)
 	ConfigLock.RUnlock()                   // Use exported name - Release lock
 
 	if !exists {
@@ -177,7 +188,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 		return frame, convRule, err
 	}
 
-	var buffer [8]uint8
+	var buffer [8]uint8 // Still limited to 8 bytes by the library's frame struct
 	var fieldProcessingError error = nil
 
 	for _, field := range convRule.Payload {
@@ -186,8 +197,6 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 			continue
 		}
 
-		// Skip timestamp, unixtime types/keys when converting MQTT->CAN
-		// (No change needed here from previous version)
 		if field.Key == "timestamp" || field.Type == "unixtime" || field.Key == "unixtime" {
 			continue
 		}
@@ -197,7 +206,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 
 		if startIndex < 0 || startIndex >= 8 || endIndex <= startIndex || endIndex > 8 {
 			if currentDebugMode {
-				log.Printf("Convert2CAN Warning: Invalid place %v for field '%s' in topic %s rule. Skipping field.", field.Place, field.Key, topic)
+				log.Printf("Convert2CAN Warning: Invalid place %v (must be within [0-8]) for field '%s' in topic %s rule. Skipping field.", field.Place, field.Key, topic)
 			}
 			continue
 		}
@@ -214,7 +223,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 			byteVal := []byte(strVal)
 			count := copy(buffer[startIndex:endIndex], byteVal)
 			if count < len(byteVal) && currentDebugMode {
-				log.Printf("Convert2CAN Warning: String value for key '%s' truncated for topic %s.", field.Key, topic)
+				log.Printf("Convert2CAN Warning: String value for key '%s' truncated for topic %s (max %d bytes fit).", field.Key, topic, endIndex-startIndex)
 			}
 		default: // Handle numeric types
 			numVal, ok := value.(float64)
@@ -232,7 +241,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 				case int32:
 					numVal = float64(v)
 					ok = true
-				case int64: // Ensure int64 is handled correctly (like from unixtime nanoseconds)
+				case int64:
 					numVal = float64(v)
 					ok = true
 				case uint:
@@ -303,7 +312,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 					break
 				}
 				targetVal = uint32(valToConvert)
-			case "float": // Assume float32
+			case "float":
 				targetVal = float32(valToConvert)
 			default:
 				convErr = fmt.Errorf("unknown numeric field type '%s' for key '%s'", field.Type, field.Key)
@@ -356,7 +365,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 					convErr = fmt.Errorf("place %v invalid for float32", field.Place)
 				}
 			}
-		}
+		} // End type switch
 
 		if convErr != nil {
 			log.Printf("Convert2CAN Warning: Conversion error for key '%s' in topic %s: %v. Skipping field.", field.Key, topic, convErr)
@@ -370,11 +379,8 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 	canidNr, _ := strconv.ParseUint(canidStr, 16, 32)
 
 	frame.ID = uint32(canidNr)
-	frame.Length = uint8(convRule.Length)
-	if frame.Length > 8 {
-		frame.Length = 8
-	}
-	frame.Data = buffer
+	frame.Length = uint8(configuredBytes) // Use the clamped value (1-8)
+	frame.Data = buffer                   // Assign the 8-byte buffer
 
 	return frame, convRule, fieldProcessingError
 }

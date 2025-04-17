@@ -8,6 +8,7 @@ type ConfigPayload struct {
 	File      *string `json:"file"`
 	Username  *string `json:"username"`
 	SleepTime *int64  `json:"sleepTime"` // Using int64 for flexibility, represents microseconds
+	BitSize   *int    `json:"bit_size"`  // ADDED: 8, 16, 32, 64 (interpreted as bytes: 1 to 8)
 }
 
 // // dispatchMessage routes incoming MQTT messages.
