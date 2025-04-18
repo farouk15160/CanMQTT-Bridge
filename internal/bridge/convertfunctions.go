@@ -379,6 +379,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 	canidNr, _ := strconv.ParseUint(canidStr, 16, 32)
 
 	frame.ID = uint32(canidNr)
+	// frame.Length = configuredBytes // Use the clamped value (1-8)
 	frame.Length = uint8(configuredBytes) // Use the clamped value (1-8)
 	frame.Data = buffer                   // Assign the 8-byte buffer
 

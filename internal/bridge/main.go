@@ -21,7 +21,7 @@ var (
 	// Settings
 	mqttUsername   string        = "farouk"
 	timeSleepValue time.Duration = 0 * time.Microsecond
-	currentBitSize int           = 8
+	currentBitSize uint          = 8
 	runInThread    bool          = false
 	debugMode      bool          = false
 	canInterface   string        = "can0"
@@ -73,7 +73,7 @@ func SetBitSize(bits int) {
 	ConfigLock.Lock()         // Use exported name
 	defer ConfigLock.Unlock() // Use exported name
 
-	var bytes int
+	var bytes uint
 	switch bits {
 	case 8:
 		bytes = 1
@@ -97,17 +97,18 @@ func SetBitSize(bits int) {
 	// We'll clamp 1-8 here as 0 bytes is unlikely intended via this setting.
 	if bytes < 1 {
 		bytes = 1
-	} else if bytes > 8 {
-		log.Printf("Bridge Warning: Requested bit_size %d results in %d bytes, exceeding standard CAN limit. Clamping to 8 bytes.", bits, bytes)
-		bytes = 8
 	}
+	// else if bytes > 8 {
+	// 	log.Printf("Bridge Warning: Requested bit_size %d results in %d bytes, exceeding standard CAN limit. Clamping to 8 bytes.", bits, bytes)
+	// 	bytes = 8
+	// }
 
 	if bytes != currentBitSize {
 		log.Printf("Bridge Setting: Current Bit Size (DLC) set to: %d bytes (from %d bits)", bytes, bits)
 		currentBitSize = bytes
 	}
 }
-func GetCurrentBitSize() int {
+func GetCurrentBitSize() uint {
 	ConfigLock.RLock()
 	defer ConfigLock.RUnlock()
 	return currentBitSize
