@@ -4,6 +4,7 @@ package mqtt
 import (
 	// Added for status handler payload
 	// Added for status handler formatting
+	"encoding/json"
 	"log"
 	"strings"
 	"time"
@@ -143,6 +144,20 @@ func (c *Client) defaultHandler(client MQTT.Client, msg MQTT.Message) {
 		case "translater/process": // Internal status request topic
 			// Need to pass the Client instance 'c' to publish the response
 			handleTranslatorStatus(t, string(p), c) // Pass client instance
+		case "translater/clock":
+			var clockPayload ClockConfigPayload
+			err := json.Unmarshal(p, &clockPayload)
+			if err != nil {
+				log.Printf("Error unmarshalling JSON for topic '%s': %v", t, err)
+			} else if clockPayload.Takt != nil { // Check if 'takt' key was present
+				// Call the bridge setter function (implementation needed in bridge package)
+				log.Printf("Received clock takt update: %d Hz", *clockPayload.Takt)
+				bridge.SetClockTakt(uint8(*clockPayload.Takt)) // Pass as int
+			} else {
+				// Optional: Log if payload was valid JSON but missing 'takt'
+				// log.Printf("Received message on '%s' but 'takt' key was missing or null.", t)
+			}
+		// --- END ADDED ---
 		default:
 			// Assume it's a message for the bridge (MQTT -> CAN)
 			if bridgeMessageHandler != nil {
@@ -170,6 +185,7 @@ func (c *Client) onConnectHandler(client MQTT.Client) {
 	internalTopics := map[string]byte{
 		"translater/process": 0, // QoS 0
 		"translater/run":     0, // QoS 0
+		"translater/clock":   0, // ADDED: Clock config topic
 	}
 	for topic, qos := range internalTopics {
 		if err := c.subscribeInternal(topic, qos); err != nil {

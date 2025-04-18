@@ -8,6 +8,9 @@ import MQTT "github.com/eclipse/paho.mqtt.golang"
 type MessageHandler interface {
 	HandleMessage(client MQTT.Client, msg MQTT.Message)
 }
+type ClockConfigPayload struct {
+	Takt *uint8 `json:"takt"` // Pointer to check if the key was present
+}
 
 // Note: ConfigHandlerFunc type is defined directly in mqtt_client.go now.
 

@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	// Added for encoding timestamp
 	"fmt"
 	"log"
 	"os"
@@ -27,8 +28,9 @@ var (
 	ip_adress      string        = "192.168.178.5"
 	mqttBrokerURL  string        = "mqtt://" + ip_adress + ":1883"
 	configFilePath string
-	directionMode  int = 0
-	numWorkers     int = runtime.NumCPU() // Number of worker goroutines per pool
+	directionMode  int   = 0
+	numWorkers     int   = runtime.NumCPU() // Number of worker goroutines per poo
+	clockTakt      uint8 = 10               // ADDED: Clock frequency in Hz (default 10)
 
 	// Runtime state
 	loadedConfig *config.Config // Holds the raw parsed config
@@ -43,9 +45,10 @@ var (
 	csi       []uint32 // subscribed CAN IDs slice (still needed for filtering in handleCANFrame)
 
 	// Concurrency (Worker Pools)
-	canWorkChan  chan can.Frame    // Channel for CAN frames -> workers
-	mqttWorkChan chan MqttWorkItem // Channel for MQTT messages -> workers
-	stopChan     chan struct{}     // Channel to signal workers to stop
+	canWorkChan   chan can.Frame    // Channel for CAN frames -> workers
+	mqttWorkChan  chan MqttWorkItem // Channel for MQTT messages -> workers
+	stopChan      chan struct{}     // Channel to signal workers to stop
+	clockStopChan chan struct{}     // ADDED: Channel to signal Clock Sender to stop
 
 	// Callbacks/Interfaces
 	mqttPublisher     Publisher          // Interface for publishing MQTT messages
@@ -299,6 +302,8 @@ func SetMqttClientUpdater(updater func(string)) {
 func Start(subFunc func(string) error, unsubFunc func(string) error) {
 	fmt.Println("--- Bridge Starting ---")
 	// Print initial config... (as before)
+	fmt.Printf("  Clock Takt:    %d Hz\n", GetClockTakt()) // Add clock takt to initial printout
+	fmt.Println("-------------------------")
 	fmt.Println("Initial Configuration:")
 	fmt.Println("  MQTT Broker URL:", GetBrokerURL()) // Use getter for thread safety
 	fmt.Println("  MQTT Username:", mqttUsername)     // Assuming username not changed dynamically often
@@ -326,12 +331,12 @@ func Start(subFunc func(string) error, unsubFunc func(string) error) {
 		log.Println("Warning: Bridge Start called with nil MQTT subscribe/unsubscribe function. Config reload might fail.")
 	}
 
-	// Initialize worker channels
-	// Buffer size can be tuned. Larger buffer absorbs bursts but uses more memory.
-	bufferSize := numWorkers * 2 // Example buffer size
+	// Initialize worker/stop channels
+	bufferSize := numWorkers * 2
 	canWorkChan = make(chan can.Frame, bufferSize)
 	mqttWorkChan = make(chan MqttWorkItem, bufferSize)
 	stopChan = make(chan struct{})
+	clockStopChan = make(chan struct{}) // Initialize clock stop channel
 
 	// Subscribe to initial CAN IDs (based on preprocessed map)
 	subscribeInitialCanIDs()
@@ -347,6 +352,11 @@ func Start(subFunc func(string) error, unsubFunc func(string) error) {
 		wg.Add(1)
 		go mqttProcessor(i, &wg)
 	}
+	// --- ADDED: Start Clock Sender ---
+	log.Println("Starting CAN Clock Sender...")
+	wg.Add(1) // Increment waitgroup for the clock sender
+	go runClockSender(&wg)
+	// --- END ADDED ---
 
 	// Start CAN handling (runs ConnectAndPublish loop)
 	wg.Add(1)                      // Add task for CAN handling itself
@@ -363,8 +373,8 @@ func Stop() {
 
 	// --- Safely close channels ---
 	// 1. Signal Stop (prevents new work being added *after* closing channels)
-	close(stopChan)
-
+	close(stopChan)      // Signal CAN/MQTT workers
+	close(clockStopChan) // Signal Clock sender
 	// 2. Close CAN bus (stops handleCANFrame from adding to canWorkChan)
 	if bus != nil {
 		log.Println("Bridge: Closing CAN bus...")
