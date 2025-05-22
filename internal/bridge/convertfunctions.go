@@ -134,7 +134,13 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 	} // End field loop
 
 	// Add the current Unix timestamp in nanoseconds since epoch
-	jsonData["unixtime"] = time.Now().UnixNano() // Changed from Unix() to UnixNano()
+	now := time.Now()
+	seconds := now.Unix()
+	microseconds := now.Nanosecond() / 1000
+
+	last_clock := fmt.Sprintf("%d.%06d", seconds, microseconds)
+
+	jsonData["unixtime"] = last_clock // Changed from Unix() to UnixNano()
 
 	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
