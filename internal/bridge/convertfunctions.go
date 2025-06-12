@@ -274,7 +274,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 
 			valToConvert := numVal
 			if field.Factor != 0 {
-				valToConvert = numVal / field.Factor
+				valToConvert = numVal * field.Factor
 			} else if numVal != 0 {
 				convErr = fmt.Errorf("zero factor for non-zero value '%f' for key '%s'", numVal, field.Key)
 				break
