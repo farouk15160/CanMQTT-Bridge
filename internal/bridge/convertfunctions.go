@@ -8,7 +8,6 @@ import (
 	"math"
 	"strconv" // Keep for CAN ID parsing during map creation
 	"strings" // Keep for CAN ID parsing
-	"time"    // Keep for timestamping
 
 	"github.com/brutella/can"
 	"github.com/farouk15160/Translater-code-new/internal/config" // Keep for types
@@ -27,7 +26,7 @@ type mqttResponse struct {
 func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse, *config.Conversion, error) {
 	res := mqttResponse{}
 
-	ConfigLock.RLock()                 // Use exported name - Read lock for accessing the map
+	ConfigLock.RLock()               // Use exported name - Read lock for accessing the map
 	convRule, exists := CanRuleMap[id] // Use exported name
 	currentDebugMode := debugMode      // Read debug flag under lock
 	ConfigLock.RUnlock()               // Use exported name - Release lock
@@ -134,13 +133,9 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 	} // End field loop
 
 	// Add the current Unix timestamp in nanoseconds since epoch
-	now := time.Now()
-	seconds := now.Unix()
-	microseconds := now.Nanosecond() / 1000
-
-	last_clock := fmt.Sprintf("%d.%06d", seconds, microseconds)
-
-	jsonData["unixtime"] = last_clock // Changed from Unix() to UnixNano()
+	ConfigLock.RLock()
+	jsonData["unixtime"] = lastClock // Changed from Unix() to UnixNano()
+	ConfigLock.RUnlock()
 
 	jsonBytes, err := json.Marshal(jsonData)
 	if err != nil {
@@ -176,11 +171,11 @@ func Convert2MQTTUsingMap(id uint32, length int, payload [8]byte) (mqttResponse,
 func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conversion, error) {
 	frame := can.Frame{} // Uses brutella/can Frame with Data [8]uint8
 
-	ConfigLock.RLock()                     // Use exported name - Read lock for accessing the map
+	ConfigLock.RLock()                 // Use exported name - Read lock for accessing the map
 	convRule, exists := MqttRuleMap[topic] // Use exported name
-	currentDebugMode := debugMode          // Read debug flag under lock
-	configuredBytes := currentBitSize      // Read configured size (already clamped 1-8)
-	ConfigLock.RUnlock()                   // Use exported name - Release lock
+	currentDebugMode := debugMode        // Read debug flag under lock
+	configuredBytes := currentBitSize    // Read configured size (already clamped 1-8)
+	ConfigLock.RUnlock()                 // Use exported name - Release lock
 
 	if !exists {
 		return frame, nil, fmt.Errorf("no matching conversion rule found")
@@ -387,7 +382,7 @@ func Convert2CANUsingMap(topic string, payload []byte) (can.Frame, *config.Conve
 	frame.ID = uint32(canidNr)
 	// frame.Length = configuredBytes // Use the clamped value (1-8)
 	frame.Length = uint8(configuredBytes) // Use the clamped value (1-8)
-	frame.Data = buffer                   // Assign the 8-byte buffer
+	frame.Data = buffer                  // Assign the 8-byte buffer
 
 	return frame, convRule, fieldProcessingError
 }

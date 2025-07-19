@@ -17,7 +17,7 @@ func runClockSender(wg *sync.WaitGroup) {
 	currentTakt := GetClockTakt()
 	currentInterval := calculateInterval(currentTakt)
 	ticker := time.NewTicker(currentInterval)
-	targetDelayMs := 20 
+	targetDelayMs := 20
 	defer ticker.Stop() // Ensure ticker resources are released
 
 	log.Printf("Clock Sender: Initial interval set to %v (%d Hz)", currentInterval, currentTakt)
@@ -33,9 +33,6 @@ func runClockSender(wg *sync.WaitGroup) {
 			newTakt := GetClockTakt()
 			newInterval := calculateInterval(newTakt)
 
-			// Reset ticker if interval needs updating
-			// Reading takt again introduces slight potential race if it changes *just* before reset,
-			// but is generally safe enough. Resetting every time is less efficient.
 			if newInterval != currentInterval {
 				ticker.Reset(newInterval)
 				currentInterval = newInterval
@@ -43,7 +40,12 @@ func runClockSender(wg *sync.WaitGroup) {
 			}
 
 			// Prepare and send CAN frame
-			nowNano := time.Now().UnixNano()
+			now := time.Now()
+			ConfigLock.Lock()
+			lastClock = now.Format("2006-01-02 15:04:05.000000") // Update lastClock
+			ConfigLock.Unlock()
+
+			nowNano := now.UnixNano()
 			var data [8]byte // Use 8 bytes for uint64 nanoseconds
 			binary.LittleEndian.PutUint64(data[:], uint64(nowNano))
 
