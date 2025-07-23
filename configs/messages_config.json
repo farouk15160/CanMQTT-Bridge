@@ -696,6 +696,59 @@
             ]
         },
         {
+            "topic": "pump/pong",
+            "canid": "0xF7",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "pong",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "pump/status",
+            "canid": "0xF8",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "status",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0,
+                    "description": "0=off, 1=on, 2=auto"
+                },
+                {
+                    "key": "level",
+                    "type": "uint8_t",
+                    "place": [
+                        1,
+                        2
+                    ],
+                    "factor": 1.0,
+                    "description": "Current level %"
+                },
+                {
+                    "key": "target_level",
+                    "type": "uint8_t",
+                    "place": [
+                        2,
+                        3
+                    ],
+                    "factor": 1.0,
+                    "description": "Target level %"
+                }
+            ]
+        },
+        {
             "topic": "translater/start",
             "canid": "0xE4",
             "length": 32,
@@ -1838,6 +1891,49 @@
                         0
                     ],
                     "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "pump/ping",
+            "canid": "0xF6",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "ping",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0
+                }
+            ]
+        },
+        {
+            "topic": "pump/write",
+            "canid": "0xF9",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "status",
+                    "type": "uint8_t",
+                    "place": [
+                        0,
+                        1
+                    ],
+                    "factor": 1.0,
+                    "description": "0=off, 1=on, 2=auto"
+                },
+                {
+                    "key": "level",
+                    "type": "uint8_t",
+                    "place": [
+                        1,
+                        2
+                    ],
+                    "factor": 1.0,
+                    "description": "Target level %"
                 }
             ]
         }
