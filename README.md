@@ -1,39 +1,52 @@
-Translater-code-new: CAN-MQTT Bridge
-Overview
-Translater-code-new is a robust Go application designed to serve as a bidirectional bridge between CAN (Controller Area Network) buses and MQTT (Message Queuing Telemetry Transport) protocols. It facilitates seamless communication by converting CAN frames into MQTT messages and vice-versa, all governed by a flexible JSON-based configuration file. Additionally, it offers a comprehensive MQTT interface for dynamic configuration adjustments and real-time status monitoring, making it an ideal solution for integrating CAN-based systems into modern IoT environments.
 
-Hardware Setup
-This translator is specifically designed to run on a Raspberry Pi 5 equipped with a WaveShare RS485 CAN HAT for Raspberry Pi. This combination provides a powerful and compact platform for deploying your CAN-MQTT bridging solution.
+# Translater-code-new: CAN-MQTT Bridge
 
-Configuring the CAN Interface on Raspberry Pi
-Before running the translator, ensure your CAN interface (e.g., can0) is properly configured and enabled. You can do this using the ip link command.
+## Overview
 
-Bring up the CAN interface and set the baud rate (e.g., 500000 bps):
+Translater-code-new is a robust Go application designed to serve as a **bidirectional bridge** between **CAN (Controller Area Network)** buses and **MQTT (Message Queuing Telemetry Transport)** protocols. It facilitates seamless communication by converting CAN frames into MQTT messages and vice-versa, all governed by a flexible JSON-based configuration file. Additionally, it offers a comprehensive MQTT interface for dynamic configuration adjustments and real-time status monitoring, making it an ideal solution for integrating CAN-based systems into modern IoT environments.
 
-sudo ip link set can0 type can bitrate 500000
-sudo ip link set up can0
+---
 
-These commands activate the can0 interface with the specified baud rate. You might want to add these commands to your Raspberry Pi's startup scripts (e.g., /etc/rc.local or a systemd service) to ensure the CAN interface is configured automatically on boot.
+## Hardware Setup
 
-Prerequisites
+This translator is specifically designed to run on a **Raspberry Pi 5** equipped with a **WaveShare RS485 CAN HAT for Raspberry Pi**. This combination provides a powerful and compact platform for deploying your CAN-MQTT bridging solution.
+
+### Configuring the CAN Interface on Raspberry Pi
+
+Before running the translator, ensure your CAN interface (e.g., `can0`) is properly configured and enabled. You can do this using the `ip link` command.
+
+1.  **Bring up the CAN interface and set the baud rate (e.g., 500000 bps):**
+
+    ```bash
+    sudo ip link set can0 type can bitrate 500000
+    sudo ip link set up can0
+    ```
+    These commands activate the `can0` interface with the specified baud rate. You might want to add these commands to your Raspberry Pi's startup scripts (e.g., `/etc/rc.local` or a systemd service) to ensure the CAN interface is configured automatically on boot.
+
+---
+
+## Prerequisites
+
 Before compiling and running the Translater-code-new application, ensure you have the following:
 
-Go: Version 1.18 or higher. Verify your GOPATH and GOROOT environment variables are correctly set.
+* **Go**: Version 1.18 or higher. Verify your `GOPATH` and `GOROOT` environment variables are correctly set.
+* **CAN interface**: A configured CAN interface (e.g., `can0`) on your system.
+* **MQTT Broker**: Access to an MQTT broker (e.g., Mosquitto).
 
-CAN interface: A configured CAN interface (e.g., can0) on your system.
+---
 
-MQTT Broker: Access to an MQTT broker (e.g., Mosquitto).
+## Compilation
 
-Compilation
-To compile the project, navigate to the root directory of the Translater-code-new project and execute the following command:
+To compile the project, navigate to the root directory of the `Translater-code-new` project and execute the following command:
 
+```bash
 go build -o can2mqtt_translator cmd/can2mqtt/main.go
-
 Running the Translator
 Execute the compiled binary from the project's root directory:
 
-./can2mqtt_translator [flags]
+Bash
 
+./can2mqtt_translator [flags]
 Command-Line Flags:
 The application's behavior can be customized using the following command-line flags:
 
@@ -109,6 +122,8 @@ description (string, optional): A descriptive text for the payload key (e.g., "0
 
 Example (can2mqtt):
 
+JSON
+
 {
     "can2mqtt": [
         {
@@ -159,7 +174,6 @@ Example (can2mqtt):
         }
     ]
 }
-
 mqtt2can Array Structure
 This array defines rules for converting MQTT messages to CAN frames. Each object here specifies an MQTT topic. When a message is received on this topic, its payload will be parsed and converted into a CAN frame to be sent on the bus.
 
@@ -180,6 +194,8 @@ place (array of two integers): Specifies the byte range within the outgoing CAN 
 factor (float): A division factor applied to the extracted value from MQTT before conversion to CAN (e.g., 1.0, 600).
 
 Example (mqtt2can):
+
+JSON
 
 {
     "mqtt2can": [
@@ -225,7 +241,6 @@ Example (mqtt2can):
         }
     ]
 }
-
 MQTT Interface (translater/* topics)
 The application leverages several MQTT topics prefixed with translater/ for crucial control, dynamic configuration, and status monitoring functionalities.
 
@@ -236,13 +251,14 @@ Purpose: Indicates that the CAN-MQTT Translator application has successfully sta
 
 Payload Example (JSON):
 
+JSON
+
 {
   "message": "CAN-MQTT Translator is up and running",
   "ip_address": "192.168.1.100",
   "username": "farouk",
   "timestamp": "1678886400"
 }
-
 Fields:
 
 message (string): A descriptive status message.
@@ -260,6 +276,8 @@ Purpose: To dynamically update the translator's operational configuration withou
 
 Payload (JSON): ConfigPayload - all fields are optional.
 
+JSON
+
 {
   "debug": true,
   "direction": 0,
@@ -268,7 +286,6 @@ Payload (JSON): ConfigPayload - all fields are optional.
   "sleepTime": 500,
   "bit_size": 64
 }
-
 Fields:
 
 debug (boolean): Enable or disable debug logging.
@@ -299,6 +316,8 @@ Purpose: Provides comprehensive current operational status and system metrics of
 
 Payload Example (JSON): ReadableTranslatorStatus
 
+JSON
+
 {
   "ram_usage": "10.52% (168 MB)",
   "buffer_usage": {
@@ -312,7 +331,6 @@ Payload Example (JSON): ReadableTranslatorStatus
   "temperature": "45.5°C",
   "uptime": "3 days, 10 hours, 30 minutes, 5 seconds"
 }
-
 Fields:
 
 ram_usage (string): Displays the RAM usage by the translator process, both as a percentage and in megabytes (e.g., "10.52% (168 MB)").
@@ -340,10 +358,11 @@ Purpose: To dynamically update the frequency of the internal CAN clock sender.
 
 Payload (JSON): ClockConfigPayload - takt is optional.
 
+JSON
+
 {
   "takt": 20
 }
-
 Fields:
 
 takt (integer): The desired frequency in Hz for the CAN clock messages (CAN ID 0x5). The default frequency is 10 Hz.
