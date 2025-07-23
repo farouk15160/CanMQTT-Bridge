@@ -2,7 +2,7 @@
 
 ## Overview
 
-Translater-code-new is a robust Go application designed to serve as a **bidirectional bridge** between **CAN (Controller Area Network)** buses and **MQTT (Message Queuing Telemetry Transport)** protocols. It facilitates seamless communication by converting CAN frames into MQTT messages and vice-versa, all governed by a flexible JSON-based configuration file. Additionally, it offers a comprehensive MQTT interface for dynamic configuration adjustments and real-time status monitoring, making it an ideal solution for integrating CAN-based systems into modern IoT environments.
+CanMQTT-Bridge is a robust Go application designed to serve as a **bidirectional bridge** between **CAN (Controller Area Network)** buses and **MQTT (Message Queuing Telemetry Transport)** protocols. It facilitates seamless communication by converting CAN frames into MQTT messages and vice-versa, all governed by a flexible JSON-based configuration file. Additionally, it offers a comprehensive MQTT interface for dynamic configuration adjustments and real-time status monitoring, making it an ideal solution for integrating CAN-based systems into modern IoT environments.
 
 ---
 
@@ -26,7 +26,7 @@ Before running the translator, ensure your CAN interface (e.g., `can0`) is prope
 
 ## Prerequisites
 
-Before compiling and running the Translater-code-new application, ensure you have the following:
+Before compiling and running the CanMQTT-Bridge application, ensure you have the following:
 
 * **Go**: Version 1.18 or higher. Verify your `GOPATH` and `GOROOT` environment variables are correctly set.
 * **CAN interface**: A configured CAN interface (e.g., `can0`) on your system.
@@ -36,7 +36,7 @@ Before compiling and running the Translater-code-new application, ensure you hav
 
 ## Compilation
 
-To compile the project, navigate to the root directory of the `Translater-code-new` project and execute the following command:
+To compile the project, navigate to the root directory of the `CanMQTT-Bridge` project and execute the following command:
 
 ```bash
 go build -o can2mqtt_translator cmd/can2mqtt/main.go
@@ -378,7 +378,7 @@ CAN Payload: Current Unix timestamp in nanoseconds (uint64, LittleEndian encodin
 Frequency: Configurable via the translater/clock MQTT topic (defaults to 10 Hz).
 
 Use Cases
-The Translater-code-new bridge opens up a wide array of applications for integrating CAN-based systems with modern IoT and cloud infrastructure.
+The CanMQTT-Bridge bridge opens up a wide array of applications for integrating CAN-based systems with modern IoT and cloud infrastructure.
 
 Robotics: Control and monitor robotic systems that communicate via CAN, allowing for remote operation, data logging, and integration with high-level control systems via MQTT.
 
@@ -391,7 +391,7 @@ Smart Agriculture: Monitor and control agricultural machinery and sensors (e.g.,
 Building Management Systems: Integrate building automation devices (HVAC, lighting, access control) that often rely on CAN, enabling centralized monitoring and control through MQTT.
 
 Future Enhancements / Contribution Guidelines
-We welcome contributions to enhance the functionality, portability, and robustness of Translater-code-new. Here are some areas where contributions would be particularly valuable:
+We welcome contributions to enhance the functionality, portability, and robustness of CanMQTT-Bridge. Here are some areas where contributions would be particularly valuable:
 
 Cross-Platform Compatibility
 Currently, some system metric gathering functions in internal/mqtt/sub_functions.go are Linux-specific (e.g., getBufferUsage, getCPUUsage, getTemperature, getUptime rely on /proc filesystem).
@@ -954,7 +954,7 @@ Frequency: Configurable via the translater/clock MQTT topic (defaults to 10 Hz).
 
 Use Cases
 
-The Translater-code-new bridge opens up a wide array of applications for integrating CAN-based systems with modern IoT and cloud infrastructure.
+The CanMQTT-Bridge bridge opens up a wide array of applications for integrating CAN-based systems with modern IoT and cloud infrastructure.
 
 
 
@@ -970,7 +970,7 @@ Building Management Systems: Integrate building automation devices (HVAC, lighti
 
 Future Enhancements / Contribution Guidelines
 
-We welcome contributions to enhance the functionality, portability, and robustness of Translater-code-new. Here are some areas where contributions would be particularly valuable:
+We welcome contributions to enhance the functionality, portability, and robustness of CanMQTT-Bridge. Here are some areas where contributions would be particularly valuable:
 
 Cross-Platform Compatibility
 
@@ -1046,11 +1046,11 @@ make it as readme file code
 Show thinking
 Markdown
 
-# Translater-code-new: CAN-MQTT Bridge
+# CanMQTT-Bridge: CAN-MQTT Bridge
 
 ## Overview
 
-Translater-code-new is a robust Go application designed to serve as a **bidirectional bridge** between **CAN (Controller Area Network)** buses and **MQTT (Message Queuing Telemetry Transport)** protocols. It facilitates seamless communication by converting CAN frames into MQTT messages and vice-versa, all governed by a flexible JSON-based configuration file. Additionally, it offers a comprehensive MQTT interface for dynamic configuration adjustments and real-time status monitoring, making it an ideal solution for integrating CAN-based systems into modern IoT environments.
+CanMQTT-Bridge is a robust Go application designed to serve as a **bidirectional bridge** between **CAN (Controller Area Network)** buses and **MQTT (Message Queuing Telemetry Transport)** protocols. It facilitates seamless communication by converting CAN frames into MQTT messages and vice-versa, all governed by a flexible JSON-based configuration file. Additionally, it offers a comprehensive MQTT interface for dynamic configuration adjustments and real-time status monitoring, making it an ideal solution for integrating CAN-based systems into modern IoT environments.
 
 ---
 
@@ -1074,7 +1074,7 @@ Before running the translator, ensure your CAN interface (e.g., `can0`) is prope
 
 ## Prerequisites
 
-Before compiling and running the Translater-code-new application, ensure you have the following:
+Before compiling and running the CanMQTT-Bridge application, ensure you have the following:
 
 * **Go**: Version 1.18 or higher. Verify your `GOPATH` and `GOROOT` environment variables are correctly set.
 * **CAN interface**: A configured CAN interface (e.g., `can0`) on your system.
@@ -1084,7 +1084,7 @@ Before compiling and running the Translater-code-new application, ensure you hav
 
 ## Compilation
 
-To compile the project, navigate to the root directory of the `Translater-code-new` project and execute the following command:
+To compile the project, navigate to the root directory of the `CanMQTT-Bridge` project and execute the following command:
 
 ```bash
 go build -o can2mqtt_translator cmd/can2mqtt/main.go
@@ -1426,7 +1426,7 @@ CAN Payload: Current Unix timestamp in nanoseconds (uint64, LittleEndian encodin
 Frequency: Configurable via the translater/clock MQTT topic (defaults to 10 Hz).
 
 Use Cases
-The Translater-code-new bridge opens up a wide array of applications for integrating CAN-based systems with modern IoT and cloud infrastructure.
+The CanMQTT-Bridge bridge opens up a wide array of applications for integrating CAN-based systems with modern IoT and cloud infrastructure.
 
 Robotics: Control and monitor robotic systems that communicate via CAN, allowing for remote operation, data logging, and integration with high-level control systems via MQTT.
 
@@ -1439,7 +1439,7 @@ Smart Agriculture: Monitor and control agricultural machinery and sensors (e.g.,
 Building Management Systems: Integrate building automation devices (HVAC, lighting, access control) that often rely on CAN, enabling centralized monitoring and control through MQTT.
 
 Future Enhancements / Contribution Guidelines
-We welcome contributions to enhance the functionality, portability, and robustness of Translater-code-new. Here are some areas where contributions would be particularly valuable:
+We welcome contributions to enhance the functionality, portability, and robustness of CanMQTT-Bridge. Here are some areas where contributions would be particularly valuable:
 
 Cross-Platform Compatibility
 Currently, some system metric gathering functions in internal/mqtt/sub_functions.go are Linux-specific (e.g., getBufferUsage, getCPUUsage, getTemperature, getUptime rely on /proc filesystem).
