@@ -1,4 +1,4 @@
-# Translater-code-new: CAN-MQTT Bridge
+# CanMQTT-Bridge: CAN-MQTT Bridge
 
 ## Overview
 
