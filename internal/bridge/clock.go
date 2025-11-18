@@ -17,7 +17,6 @@ func runClockSender(wg *sync.WaitGroup) {
 	currentTakt := GetClockTakt()
 	currentInterval := calculateInterval(currentTakt)
 	ticker := time.NewTicker(currentInterval)
-	targetDelayMs := 20
 	defer ticker.Stop() // Ensure ticker resources are released
 
 	log.Printf("Clock Sender: Initial interval set to %v (%d Hz)", currentInterval, currentTakt)
