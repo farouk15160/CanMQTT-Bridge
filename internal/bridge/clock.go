@@ -62,25 +62,6 @@ func runClockSender(wg *sync.WaitGroup) {
 			if err == nil && IsDebugEnabled() { // Use IsDebugEnabled() for thread-safe check
 				log.Printf("Clock Sender: Sent time %d (ID: %X, Len: %d)", nowNano, frame.ID, frame.Length)
 			}
-			// Error is already logged by canPublish if it occurs
-			// Schedule delayed frame
-			time.AfterFunc(time.Duration(targetDelayMs)*time.Millisecond, func() {
-				nowNanoDelayed := time.Now().UnixNano()
-				var data [8]byte
-				binary.LittleEndian.PutUint64(data[:], uint64(nowNanoDelayed))
-
-				frame := can.Frame{
-					ID:     0x6,
-					Length: 8,
-					Data:   data,
-				}
-
-				err := canPublish(frame)
-				if err == nil && IsDebugEnabled() {
-					log.Printf("Clock drive Sender: Sent time %d (ID: %X, Len: %d)", nowNanoDelayed, frame.ID, frame.Length)
-				}
-			})
-
 		} // end select
 	} // end for
 }
