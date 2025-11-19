@@ -697,7 +697,7 @@
         },
         {
             "topic": "pump/pong",
-            "canid": "0xF7",
+            "canid": "0x66",
             "length": 8,
             "payload": [
                 {
@@ -713,7 +713,7 @@
         },
         {
             "topic": "pump/status",
-            "canid": "0xF8",
+            "canid": "0x67",
             "length": 8,
             "payload": [
                 {
@@ -1896,7 +1896,7 @@
         },
         {
             "topic": "pump/ping",
-            "canid": "0xF6",
+            "canid": "0x65",
             "length": 8,
             "payload": [
                 {
@@ -1912,7 +1912,7 @@
         },
         {
             "topic": "pump/write",
-            "canid": "0xF9",
+            "canid": "0x68",
             "length": 8,
             "payload": [
                 {
