@@ -1,133 +1,138 @@
-# Translater-code-new
+# CAN-MQTT Bridge
 
-## Overview
+A high-performance, bidirectional Go application that bridges a CAN (Controller Area Network) bus and an MQTT broker. It allows for real-time translation of CAN frames into MQTT messages and vice-versa based on a dynamic JSON configuration.
 
-Translater-code-new is a Go application that acts as a bridge between CAN (Controller Area Network) buses and MQTT (Message Queuing Telemetry Transport). It can convert CAN frames to MQTT messages and vice-versa, based on a JSON configuration file. It also provides an MQTT interface for dynamic configuration and status monitoring.
+## Features
+
+* **Bidirectional Translation**: Supports CAN to MQTT, MQTT to CAN, or both simultaneously.
+* **Dynamic Configuration**: Reload translation rules on-the-fly via MQTT without restarting the service.
+* **Status Monitoring**: Reports system health (RAM, CPU, Buffer usage, Temperature) via MQTT.
+* **Rate Limiting**: Configurable sleep time between CAN frame processing.
+* **Internal Clock**: Built-in CAN clock generator for bus synchronization.
+* **Concurrency**: Optimized to use all available CPU cores.
 
 ## Prerequisites
 
-* **Go**: Version 1.18 or higher (ensure your GOPATH and GOROOT are set up correctly).
-* **CAN interface**: A configured CAN interface on your system (e.g., `can0`).
-* **MQTT Broker**: Access to an MQTT broker.
+* **Go**: Version 1.18 or higher.
+* **CAN Interface**: A configured SocketCAN interface (e.g., `can0`, `vcan0`).
+* **MQTT Broker**: A running MQTT broker (e.g., Mosquitto).
 
-## Compilation
+## Installation & Compilation
 
-To compile the project, navigate to the root directory of the `Translater-code-new` project and run the following command:
+1.  **Clone the repository:**
+    git clone https://github.com/farouk15160/CanMQTT-Bridge
+    cd CanMQTT-Bridge
 
-```bash
-go build -o can2mqtt_translator cmd/can2mqtt/main.go
+2.  **Build the binary:**
+    go build -o can2mqtt_bridge cmd/can2mqtt/main.go
 
-Running the Translator
-Execute the compiled binary from the project's root directory:
-./can2mqtt_translator [flags]
+3.  **Run the bridge:**
+    ./can2mqtt_bridge
 
-Command-Line Flags:
-The application behavior can be customized using the following command-line flags:
+## Command-Line Usage
 
--v: (Boolean, default: true) Enable verbose/debug output.
-Example: ./can2mqtt_translator -v=false
--c <interface_name>: (String, default: "can0") CAN interface name.
-Example: ./can2mqtt_translator -c can1
--m <broker_url>: (String, default: "192.168.30.5:1883") MQTT broker connection string.
-Format: [tcp://][user:pass@]host:port
-Example: ./can2mqtt_translator -m "tcp://mymqttbroker.com:1883"
-Example with auth: ./can2mqtt_translator -m "tcp://user:password@localhost:1883"
--f <file_path>: (String, default: "configs/messages_config.json") Path to the message conversion configuration JSON file.
-Example: ./can2mqtt_translator -f "/path/to/your/custom_config.json"
--d <mode>: (Integer, default: 0) Direction mode for message translation.
-0: Bidirectional (CAN <-> MQTT)
-1: CAN to MQTT only
-2: MQTT to CAN only
-Example: ./can2mqtt_translator -d 1
--u <username>: (String, default: "farouk") MQTT username. This overrides any username specified in the broker URL if provided separately.
-Example: ./can2mqtt_translator -u myuser
--t <microseconds>: (Integer, default: 0) Time to sleep in microseconds between processing CAN frames (can act as a rate limiter for CAN->MQTT).
-Example: ./can2mqtt_translator -t 1000 (sleeps for 1ms)
--T: (Boolean, default: false) Run CAN handling in a separate thread.
-Example: ./can2mqtt_translator -T=true
--id <client_id>: (String, default: "translater-client") MQTT client ID.
-Example: ./can2mqtt_translator -id myCanTranslator
+The application can be customized using the following flags:
 
-Configuration File
-The translator uses a JSON file (specified by the -f flag, defaulting to configs/messages_config.json) to define rules for converting messages between CAN and MQTT. This file contains two main arrays: can2mqtt and mqtt2can, each with objects defining topics, CAN IDs, payload structures, and conversion factors.
+| Flag | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `-v` | bool | `true` | Enable verbose debug output. |
+| `-c` | string | `can0` | The CAN interface name to bind to. |
+| `-m` | string | `...:1883` | MQTT broker URL (e.g., `tcp://localhost:1883`). |
+| `-u` | string | `farouk` | MQTT Username (overrides URL username). |
+| `-id`| string | `translater-client` | MQTT Client ID. |
+| `-f` | string | `configs/messages_config.json` | Path to the translation configuration file. |
+| `-d` | int | `0` | Direction: `0`=Bidirectional, `1`=CAN->MQTT, `2`=MQTT->CAN. |
+| `-t` | int | `0` | Sleep time in microseconds (rate limiter). |
+| `-T` | bool | `false` | Run CAN handling in a dedicated thread. |
 
-MQTT Interface (translater/* topics)
-The application uses several MQTT topics prefixed with translater/ for control, configuration, and status updates.
+**Example:**
+./can2mqtt_bridge -c can1 -m "tcp://192.168.1.50:1883" -f ./my_config.json -d 0
 
-1. translater/start (Retained)
-Published by: Translator on startup.
-Purpose: Indicates that the CAN-MQTT Translator is up and running.
-Payload Example (JSON):
-JSON
+## Configuration File Format
+
+The mapping between CAN IDs and MQTT topics is defined in a JSON file. The file must contain two arrays: `can2mqtt` and `mqtt2can`.
+
+### Structure
 
 {
-  "message": "CAN-MQTT Translator is up and running",
-  "ip_address": "192.168.1.100",
-  "username": "farouk",
-  "timestamp": "1678886400"
+  "can2mqtt": [ ... ],
+  "mqtt2can": [ ... ]
 }
-2. translater/run
-Published to: By an external client to the translator.
-Purpose: To dynamically update the translator's configuration. If the file field is provided and changed, the message configuration rules will be reloaded from the new file.
-Payload (JSON): ConfigPayload - all fields are optional.
-JSON
-{
-  "debug": true,
-  "direction": 0,
-  "file": "configs/new_messages_config.json",
-  "username": "new_user",
-  "sleepTime": 500,
-  "bit_size": 64
-}
-debug (boolean): Enable/disable debug logging.
-direction (integer): Set direction mode (0: bidirectional, 1: CAN->MQTT, 2: MQTT->CAN).
-file (string): Path to the message configuration JSON file. Changing this triggers a reload.
-username (string): MQTT username.
-sleepTime (integer): Sleep time in microseconds between CAN frames.
-bit_size (integer): Specifies the data length for outgoing CAN frames when converting MQTT to CAN. Valid inputs are 8, 16, 32, 64, corresponding to 1, 2, 4, or 8 bytes for the CAN frame's Data Length Code (DLC).
-3. translater/process
-Published to: By an external client to the translator.
-Purpose: Request the current operational status of the translator.
-Payload: Any string (the content of the payload is currently ignored).
-Response: The translator publishes its status to the translater/status topic.
-4. translater/status (Retained)
-Published by: Translator in response to a message on translater/process.
-Purpose: Provides current operational status and system metrics of the translator.
-Payload Example (JSON): ReadableTranslatorStatus
-JSON
+
+### Message Object Definition
+
+Each message object defines how to parse the raw bytes.
+
+* **topic**: The MQTT topic string.
+* **canid**: The CAN ID (hex string, e.g., "0x123").
+* **length**: DLC (Data Length Code) of the CAN frame (usually 8).
+* **payload**: An array of fields to decode/encode.
+
+#### Payload Field Definition
+* **key**: The JSON key name for the MQTT payload.
+* **type**: Data type (`uint8_t`, `int16_t`, `int32_t`, `float`, `unixtime`, `string`).
+* **place**: `[StartByte, EndByte]`. The byte range in the CAN frame (0-indexed).
+* **factor**: Multiplier for the value (used for scaling, e.g., converting raw integers to floats).
+
+### Example Configuration
 
 {
-  "ram_usage": "10.52% (168 MB)",
-  "buffer_usage": {
-    "UsedMB": 2048,
-    "AvailableMB": 12288,
-    "UsedPercent": 16.66
-  },
-  "cpu_usage_cores": {
-    "overall": "25.75%"
-  },
-  "temperature": "45.5°C",
-  "uptime": "3 days, 10 hours, 30 minutes, 5 seconds"
+    "can2mqtt": [
+        {
+            "topic": "motor/data",
+            "canid": "0x63",
+            "length": 8,
+            "payload": [
+                {
+                    "key": "rpm",
+                    "type": "int16_t",
+                    "place": [2, 4], 
+                    "factor": 1.0
+                },
+                {
+                    "key": "torque",
+                    "type": "float",
+                    "place": [4, 8],
+                    "factor": 0.001
+                }
+            ]
+        }
+    ]
 }
-ram_usage: RAM usage by the translator process.
-buffer_usage: System memory buffer/cache usage (from /proc/meminfo on Linux).
-cpu_usage_cores: Overall CPU usage.
-temperature: System temperature (if available).
-uptime: System uptime.
-5. translater/clock
-Published to: By an external client to the translator.
-Purpose: To update the frequency of the internal CAN clock sender.
-Payload (JSON): ClockConfigPayload - takt is optional.
-JSON
 
-{
-  "takt": 20
-}
-takt (integer): Desired frequency in Hz for the CAN clock messages (CAN ID 0x5). Default is 10 Hz.
-Internal CAN Clock Sender
-The translator includes a built-in CAN message sender that periodically transmits a "clock" message.
+## MQTT Control Interface
 
-CAN ID: 0x5
-CAN DLC (Length): 8 bytes
-CAN Payload: Current Unix timestamp in nanoseconds (uint64, LittleEndian encoding).
-Frequency: Configurable via the translater/clock MQTT topic (defaults to 10 Hz). This message is useful for timestamping or as a heartbeat on the CAN bus.
+The bridge subscribes to specific `translater/*` topics to allow remote management.
+
+### 1. Status (`translater/status`)
+* **Direction**: Bridge -> Broker (Retained)
+* **Payload**: JSON object containing RAM usage, CPU usage, Uptime, and Buffer health.
+* **Trigger**: Publishes periodically or upon request via `translater/process`.
+
+### 2. Command: Reload/Configure (`translater/run`)
+* **Direction**: Broker -> Bridge
+* **Purpose**: Dynamically update configuration without restarting.
+* **Payload**:
+    {
+      "file": "configs/new_config.json",
+      "direction": 0,
+      "debug": false,
+      "sleepTime": 1000
+    }
+
+### 3. Command: Request Status (`translater/process`)
+* **Direction**: Broker -> Bridge
+* **Payload**: Any string.
+* **Action**: Forces the bridge to publish immediate stats to `translater/status`.
+
+### 4. Command: Clock Settings (`translater/clock`)
+* **Direction**: Broker -> Bridge
+* **Payload**: `{"takt": 20}`
+* **Action**: Sets the frequency (Hz) of the internal heartbeat CAN message (ID `0x5`).
+
+## Internal CAN Clock
+The bridge automatically broadcasts a heartbeat on **CAN ID 0x5**.
+* **Payload**: Unix timestamp (nanoseconds, LittleEndian).
+* **Default Frequency**: 10Hz.
+### Clock Accuracy
+To get the Best Time accuracy, set the device running the bridge as your NTP-Server on your Network
